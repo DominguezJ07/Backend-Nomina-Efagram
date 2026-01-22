@@ -1,0 +1,20 @@
+const cloudinary = require('cloudinary').v2;
+const logger = require('../utils/logger');
+
+// Configurar Cloudinary solo si las credenciales están presentes
+if (process.env.CLOUDINARY_CLOUD_NAME && 
+    process.env.CLOUDINARY_API_KEY && 
+    process.env.CLOUDINARY_API_SECRET) {
+  
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+  });
+
+  logger.info('Cloudinary configurado correctamente');
+} else {
+  logger.warn('Cloudinary no configurado (credenciales faltantes)');
+}
+
+module.exports = cloudinary;
