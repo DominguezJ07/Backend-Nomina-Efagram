@@ -77,52 +77,22 @@ app.get('/', (req, res) => {
 // RUTAS DE LA API
 // ========================================
 
-// Importar rutas (cuando las creemos)
-// const authRoutes = require('./Auth/routes/auth.routes');
-// const zonaRoutes = require('./Territorial/routes/zona.routes');
-// const nucleoRoutes = require('./Territorial/routes/nucleo.routes');
-// const fincaRoutes = require('./Territorial/routes/finca.routes');
-// const loteRoutes = require('./Territorial/routes/lote.routes');
-// const personaRoutes = require('./Personal/routes/persona.routes');
-// const rolRoutes = require('./Personal/routes/rol.routes');
-// const cuadrillaRoutes = require('./Personal/routes/cuadrilla.routes');
-// const asignacionRoutes = require('./Personal/routes/asignacion.routes');
-// const clienteRoutes = require('./Proyectos/routes/cliente.routes');
-// const proyectoRoutes = require('./Proyectos/routes/proyecto.routes');
-// const proyectoActividadRoutes = require('./Proyectos/routes/proyectoActividad.routes');
-// const actividadRoutes = require('./Actividades/routes/actividad.routes');
-// const precioRoutes = require('./Actividades/routes/precio.routes');
-// const registroRoutes = require('./RegistroDiario/routes/registro.routes');
-// const novedadRoutes = require('./RegistroDiario/routes/novedad.routes');
-// const semanaRoutes = require('./ControlSemanal/routes/semana.routes');
-// const nominaRoutes = require('./Nomina/routes/nomina.routes');
-// const cierreRoutes = require('./Nomina/routes/cierre.routes');
-// const reportesRoutes = require('./Reportes/routes/reportes.routes');
+// Importar rutas (solo una vez)
+const authRoutes = require('./Auth/routes/auth.routes');
+const zonaRoutes = require('./Territorial/routes/zona.routes');
+const nucleoRoutes = require('./Territorial/routes/nucleo.routes');
+const fincaRoutes = require('./Territorial/routes/finca.routes');
+const loteRoutes = require('./Territorial/routes/lote.routes');
 
 // Rutas base API v1
 const apiRouter = express.Router();
 
-// Cuando las rutas estén listas, descomentar:
-// apiRouter.use('/auth', authRoutes);
-// apiRouter.use('/zonas', zonaRoutes);
-// apiRouter.use('/nucleos', nucleoRoutes);
-// apiRouter.use('/fincas', fincaRoutes);
-// apiRouter.use('/lotes', loteRoutes);
-// apiRouter.use('/personas', personaRoutes);
-// apiRouter.use('/roles', rolRoutes);
-// apiRouter.use('/cuadrillas', cuadrillaRoutes);
-// apiRouter.use('/asignaciones', asignacionRoutes);
-// apiRouter.use('/clientes', clienteRoutes);
-// apiRouter.use('/proyectos', proyectoRoutes);
-// apiRouter.use('/proyectos-actividades', proyectoActividadRoutes);
-// apiRouter.use('/actividades', actividadRoutes);
-// apiRouter.use('/precios', precioRoutes);
-// apiRouter.use('/registros', registroRoutes);
-// apiRouter.use('/novedades', novedadRoutes);
-// apiRouter.use('/semanas', semanaRoutes);
-// apiRouter.use('/nomina', nominaRoutes);
-// apiRouter.use('/cierres', cierreRoutes);
-// apiRouter.use('/reportes', reportesRoutes);
+// Montar rutas
+apiRouter.use('/auth', authRoutes);
+apiRouter.use('/zonas', zonaRoutes);
+apiRouter.use('/nucleos', nucleoRoutes);
+apiRouter.use('/fincas', fincaRoutes);
+apiRouter.use('/lotes', loteRoutes);
 
 // Montar rutas en /api/v1
 app.use('/api/v1', apiRouter);
@@ -148,10 +118,10 @@ const startServer = async () => {
     
     // Iniciar servidor
     app.listen(PORT, () => {
-      logger.success(` Servidor ejecutándose en puerto ${PORT}`);
-      logger.info(` Ambiente: ${process.env.NODE_ENV || 'development'}`);
-      logger.info(` URL: http://localhost:${PORT}`);
-      logger.info(` Health Check: http://localhost:${PORT}/health`);
+      logger.success(`✓ Servidor ejecutándose en puerto ${PORT}`);
+      logger.info(`✓ Ambiente: ${process.env.NODE_ENV || 'development'}`);
+      logger.info(`✓ URL: http://localhost:${PORT}`);
+      logger.info(`✓ Health Check: http://localhost:${PORT}/health`);
     });
 
   } catch (error) {

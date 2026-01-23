@@ -1,0 +1,523 @@
+{
+  "info": {
+    "name": "EFAGRAM - Nómina API",
+    "description": "Colección completa de endpoints para el sistema de nómina EFAGRAM",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:5000/api/v1",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:5000/health",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "5000",
+          "path": ["health"]
+        }
+      }
+    },
+    {
+      "name": "Territorial",
+      "item": [
+        {
+          "name": "Zonas",
+          "item": [
+            {
+              "name": "Obtener todas las zonas",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/zonas",
+                  "host": ["{{base_url}}"],
+                  "path": ["zonas"]
+                }
+              }
+            },
+            {
+              "name": "Obtener zona por ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/zonas/:id",
+                  "host": ["{{base_url}}"],
+                  "path": ["zonas", ":id"],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Obtener zona por código",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/zonas/codigo/1",
+                  "host": ["{{base_url}}"],
+                  "path": ["zonas", "codigo", "1"]
+                }
+              }
+            },
+            {
+              "name": "Crear zona",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"codigo\": 1,\n  \"nombre\": \"Norte\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/zonas",
+                  "host": ["{{base_url}}"],
+                  "path": ["zonas"]
+                }
+              }
+            },
+            {
+              "name": "Actualizar zona",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"activa\": false\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/zonas/:id",
+                  "host": ["{{base_url}}"],
+                  "path": ["zonas", ":id"],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Desactivar zona",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/zonas/:id",
+                  "host": ["{{base_url}}"],
+                  "path": ["zonas", ":id"],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Obtener núcleos de zona",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/zonas/:id/nucleos",
+                  "host": ["{{base_url}}"],
+                  "path": ["zonas", ":id", "nucleos"],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Núcleos",
+          "item": [
+            {
+              "name": "Obtener todos los núcleos",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/nucleos",
+                  "host": ["{{base_url}}"],
+                  "path": ["nucleos"]
+                }
+              }
+            },
+            {
+              "name": "Obtener núcleo por ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/nucleos/:id",
+                  "host": ["{{base_url}}"],
+                  "path": ["nucleos", ":id"],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Crear núcleo",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"codigo\": \"NUC-POP\",\n  \"nombre\": \"Popayán\",\n  \"zona\": \"ZONA_ID_AQUI\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/nucleos",
+                  "host": ["{{base_url}}"],
+                  "path": ["nucleos"]
+                }
+              }
+            },
+            {
+              "name": "Actualizar núcleo",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"nombre\": \"Popayán Actualizado\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/nucleos/:id",
+                  "host": ["{{base_url}}"],
+                  "path": ["nucleos", ":id"],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Desactivar núcleo",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/nucleos/:id",
+                  "host": ["{{base_url}}"],
+                  "path": ["nucleos", ":id"],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Obtener fincas de núcleo",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/nucleos/:id/fincas",
+                  "host": ["{{base_url}}"],
+                  "path": ["nucleos", ":id", "fincas"],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Fincas",
+          "item": [
+            {
+              "name": "Obtener todas las fincas",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/fincas",
+                  "host": ["{{base_url}}"],
+                  "path": ["fincas"]
+                }
+              }
+            },
+            {
+              "name": "Obtener finca por ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/fincas/:id",
+                  "host": ["{{base_url}}"],
+                  "path": ["fincas", ":id"],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Crear finca",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"codigo\": \"FIN-001\",\n  \"nombre\": \"El Paraíso\",\n  \"nucleo\": \"NUCLEO_ID_AQUI\",\n  \"area_total\": 150.5\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/fincas",
+                  "host": ["{{base_url}}"],
+                  "path": ["fincas"]
+                }
+              }
+            },
+            {
+              "name": "Actualizar finca",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"area_total\": 160.0\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/fincas/:id",
+                  "host": ["{{base_url}}"],
+                  "path": ["fincas", ":id"],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Desactivar finca",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/fincas/:id",
+                  "host": ["{{base_url}}"],
+                  "path": ["fincas", ":id"],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Obtener lotes de finca",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/fincas/:id/lotes",
+                  "host": ["{{base_url}}"],
+                  "path": ["fincas", ":id", "lotes"],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Lotes",
+          "item": [
+            {
+              "name": "Obtener todos los lotes",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/lotes",
+                  "host": ["{{base_url}}"],
+                  "path": ["lotes"]
+                }
+              }
+            },
+            {
+              "name": "Obtener lote por ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/lotes/:id",
+                  "host": ["{{base_url}}"],
+                  "path": ["lotes", ":id"],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Obtener jerarquía de lote",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/lotes/:id/jerarquia",
+                  "host": ["{{base_url}}"],
+                  "path": ["lotes", ":id", "jerarquia"],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Crear lote",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"codigo\": \"LOT-A1\",\n  \"nombre\": \"Lote A1\",\n  \"finca\": \"FINCA_ID_AQUI\",\n  \"area\": 25.5,\n  \"pendiente\": \"Ondulada\",\n  \"accesibilidad\": \"Buena\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/lotes",
+                  "host": ["{{base_url}}"],
+                  "path": ["lotes"]
+                }
+              }
+            },
+            {
+              "name": "Actualizar lote",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"area\": 30.0\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/lotes/:id",
+                  "host": ["{{base_url}}"],
+                  "path": ["lotes", ":id"],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Desactivar lote",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/lotes/:id",
+                  "host": ["{{base_url}}"],
+                  "path": ["lotes", ":id"],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "seed": "node src/infrastructure/db/seeders.js"
+    "seed": "node src/infrastructure/db/seeders.js",
+    "seed:users": "node src/infrastructure/db/seedUsers.js"
   },
   "keywords": [
     "nomina",
