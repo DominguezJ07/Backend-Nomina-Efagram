@@ -80,17 +80,45 @@ const createZona = asyncHandler(async (req, res) => {
  * @access  Private (Admin)
  */
 const updateZona = asyncHandler(async (req, res) => {
-  let zona = await Zona.findById(req.params.id);
+  const zona = await Zona.findById(req.params.id);
 
   if (!zona) {
     throw new ApiError(404, 'Zona no encontrada');
   }
 
-  zona = await Zona.findByIdAndUpdate(
-    req.params.id,
-    req.body,
-    { new: true, runValidators: true }
-  );
+  // Verificar si el código está cambiando y si ya existe
+  if (req.body.codigo && req.body.codigo !== zona.codigo) {
+    const existeCodigo = await Zona.findOne({ 
+      codigo: req.body.codigo,
+      _id: { $ne: req.params.id }
+    });
+    
+    if (existeCodigo) {
+      throw new ApiError(409, 'El código ya está en uso por otra zona');
+    }
+  }
+
+  // Verificar si el nombre está cambiando y si ya existe
+  if (req.body.nombre && req.body.nombre !== zona.nombre) {
+    const existeNombre = await Zona.findOne({ 
+      nombre: req.body.nombre,
+      _id: { $ne: req.params.id }
+    });
+    
+    if (existeNombre) {
+      throw new ApiError(409, 'El nombre ya está en uso por otra zona');
+    }
+  }
+
+  // Actualizar solo los campos permitidos
+  const camposPermitidos = ['nombre', 'codigo', 'activa'];
+  camposPermitidos.forEach(campo => {
+    if (req.body[campo] !== undefined) {
+      zona[campo] = req.body[campo];
+    }
+  });
+
+  await zona.save();
 
   res.status(200).json({
     success: true,
@@ -100,7 +128,7 @@ const updateZona = asyncHandler(async (req, res) => {
 });
 
 /**
- * @desc    Desactivar una zona (soft delete)
+ * @desc    Eliminar una zona (soft delete)
  * @route   DELETE /api/v1/zonas/:id
  * @access  Private (Admin)
  */
@@ -111,6 +139,12 @@ const deleteZona = asyncHandler(async (req, res) => {
     throw new ApiError(404, 'Zona no encontrada');
   }
 
+  // Verificar si la zona ya está inactiva
+  if (!zona.activa) {
+    throw new ApiError(400, 'La zona ya está desactivada');
+  }
+
+  // Soft delete
   zona.activa = false;
   await zona.save();
 

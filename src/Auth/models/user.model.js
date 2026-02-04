@@ -6,12 +6,9 @@ const userSchema = new mongoose.Schema({
   nombre: {
     type: String,
     required: [true, 'El nombre es obligatorio'],
-    trim: true
-  },
-  apellidos: {
-    type: String,
-    required: [true, 'Los apellidos son obligatorios'],
-    trim: true
+    trim: true,
+    minlength: [2, 'El nombre debe tener al menos 2 caracteres'],
+    maxlength: [50, 'El nombre no puede tener más de 50 caracteres']
   },
   email: {
     type: String,
@@ -30,26 +27,10 @@ const userSchema = new mongoose.Schema({
     minlength: [6, 'La contraseña debe tener al menos 6 caracteres'],
     select: false
   },
-  tipo_doc: {
-    type: String,
-    required: [true, 'El tipo de documento es obligatorio'],
-    enum: ['CC', 'CE', 'TI', 'PA'],
-    default: 'CC'
-  },
-  num_doc: {
-    type: String,
-    required: [true, 'El número de documento es obligatorio'],
-    unique: true,
-    trim: true
-  },
-  telefono: {
-    type: String,
-    trim: true
-  },
   roles: [{
     type: String,
     enum: Object.values(ROLES),
-    default: ['TRABAJADOR']
+    default: [ROLES.TRABAJADOR]
   }],
   activo: {
     type: Boolean,
@@ -70,7 +51,7 @@ const userSchema = new mongoose.Schema({
   versionKey: false
 });
 
-// Índices (sin duplicar con unique: true)
+// Índices
 userSchema.index({ roles: 1 });
 
 // Encriptar password antes de guardar
@@ -94,11 +75,7 @@ userSchema.methods.toPublicJSON = function() {
   return {
     id: this._id,
     nombre: this.nombre,
-    apellidos: this.apellidos,
     email: this.email,
-    tipo_doc: this.tipo_doc,
-    num_doc: this.num_doc,
-    telefono: this.telefono,
     roles: this.roles,
     activo: this.activo,
     avatar: this.avatar,
@@ -110,11 +87,6 @@ userSchema.methods.toPublicJSON = function() {
 userSchema.statics.findActiveByEmail = function(email) {
   return this.findOne({ email, activo: true }).select('+password');
 };
-
-// Virtual para nombre completo
-userSchema.virtual('nombreCompleto').get(function() {
-  return `${this.nombre} ${this.apellidos}`;
-});
 
 userSchema.set('toJSON', { virtuals: true });
 userSchema.set('toObject', { virtuals: true });

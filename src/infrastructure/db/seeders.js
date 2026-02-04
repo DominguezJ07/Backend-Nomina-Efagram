@@ -10,6 +10,7 @@ const { ZONAS, ROLES, TIPOS_NOVEDAD } = require('../../config/constants');
 
 const seedDatabase = async () => {
   try {
+    
     // Conectar a MongoDB
     await mongoose.connect(process.env.MONGODB_URI, {
       dbName: process.env.DB_NAME
@@ -27,7 +28,7 @@ const seedDatabase = async () => {
     ];
 
     // await Zona.insertMany(zonasData);
-    logger.info('✅ Zonas creadas');
+    logger.info('Zonas creadas');
 
     // ===== ROLES =====
     logger.info('Creando roles...');
@@ -38,7 +39,7 @@ const seedDatabase = async () => {
     }));
 
     // await Rol.insertMany(rolesData);
-    logger.info('✅ Roles creados');
+    logger.info('Roles creados');
 
     // ===== TIPOS DE NOVEDAD =====
     logger.info('Creando tipos de novedad...');
@@ -49,9 +50,9 @@ const seedDatabase = async () => {
     }));
 
     // await NovedadTipo.insertMany(novedadesData);
-    logger.info('✅ Tipos de novedad creados');
+    logger.info('Tipos de novedad creados');
 
-    logger.info('🎉 Seeding completado exitosamente');
+    logger.info('Seeding completado exitosamente');
     process.exit(0);
 
   } catch (error) {

@@ -7,7 +7,7 @@ const ESTADOS = {
     CERRADO: 'CERRADO',
     CANCELADO: 'CANCELADO'
   },
-  
+ 
   PAL: { // Proyecto-Actividad-Lote
     PENDIENTE: 'PENDIENTE',
     EN_EJECUCION: 'EN_EJECUCION',
@@ -16,48 +16,94 @@ const ESTADOS = {
     REEMPLAZADA: 'REEMPLAZADA',
     CANCELADA: 'CANCELADA'
   },
-
+ 
   PERSONA: {
     ACTIVO: 'ACTIVO',
     INACTIVO: 'INACTIVO'
   },
-
+ 
   SEMANA: {
     ABIERTA: 'ABIERTA',
     REVISADA: 'REVISADA',
-    CERRADA: 'CERRADA'
+    CERRADA: 'CERRADA',
+    BLOQUEADA: 'BLOQUEADA'
   },
-
+ 
   PERIODO: {
     ABIERTO: 'ABIERTO',
     EN_REVISION: 'EN_REVISION',
     CERRADO: 'CERRADO',
     REABIERTO: 'REABIERTO'
   },
-
+ 
   NOMINA: {
     PENDIENTE: 'PENDIENTE',
     VALIDADO: 'VALIDADO',
     PAGADO: 'PAGADO'
+  },
+
+  REGISTRO: {
+    PENDIENTE: 'PENDIENTE',
+    APROBADO: 'APROBADO',
+    RECHAZADO: 'RECHAZADO',
+    CORREGIDO: 'CORREGIDO'
   }
 };
 
-// Unidades de medida
-const UNIDADES_MEDIDA = {
-  HA: 'HA',           // Hectáreas
-  ARBOL: 'ARBOL',     // Árboles
-  METRO: 'METRO',     // Metros
-  JORNAL: 'JORNAL',   // Jornales
-  OTRO: 'OTRO'
+// Estados de Proyecto (exportación individual)
+const ESTADOS_PROYECTO = {
+  PLANEADO: 'PLANEADO',
+  EN_NEGOCIACION: 'EN_NEGOCIACION',
+  ACTIVO: 'ACTIVO',
+  CERRADO: 'CERRADO',
+  CANCELADO: 'CANCELADO'
 };
 
+// Estados de PAL (exportación individual)
+const ESTADOS_PAL = {
+  PENDIENTE: 'PENDIENTE',
+  EN_EJECUCION: 'EN_EJECUCION',
+  CUMPLIDA: 'CUMPLIDA',
+  REPROGRAMADA: 'REPROGRAMADA',
+  REEMPLAZADA: 'REEMPLAZADA',
+  CANCELADA: 'CANCELADA'
+};
+
+// Estados de Registro Diario
+const ESTADOS_REGISTRO = {
+  PENDIENTE: 'PENDIENTE',
+  APROBADO: 'APROBADO',
+  RECHAZADO: 'RECHAZADO',
+  CORREGIDO: 'CORREGIDO'
+};
+
+// Estados de Semana Operativa
+const ESTADOS_SEMANA = {
+  ABIERTA: 'ABIERTA',
+  CERRADA: 'CERRADA',
+  BLOQUEADA: 'BLOQUEADA'
+};
+ 
+// Unidades de medida
+const UNIDADES_MEDIDA = {
+  HECTAREA: 'HECTAREA',
+  ARBOL: 'ARBOL',
+  METRO: 'METRO',
+  METRO_CUADRADO: 'METRO_CUADRADO',
+  KILOGRAMO: 'KILOGRAMO',
+  LITRO: 'LITRO',
+  JORNAL: 'JORNAL',
+  UNIDAD: 'UNIDAD'
+};
+ 
+ 
 // Tipos de contrato
 const TIPOS_CONTRATO = {
   FIJO_TODO_COSTO: 'FIJO_TODO_COSTO',
   VARIABLE: 'VARIABLE',
   OTRO: 'OTRO'
 };
-
+ 
 // Roles del sistema
 const ROLES = {
   SUPERVISOR: 'SUPERVISOR',
@@ -75,21 +121,28 @@ const ZONAS = {
   SUR: { codigo: 2, nombre: 'Sur' },
   CENTRO: { codigo: 3, nombre: 'Centro' }
 };
-
+ 
 // Tipos de novedad
 const TIPOS_NOVEDAD = {
   LLUVIA: 'LLUVIA',
   INSUMOS: 'INSUMOS',
   HERRAMIENTAS: 'HERRAMIENTAS',
+  PERMISO: 'PERMISO',
+  AUSENCIA: 'AUSENCIA',
+  INCAPACIDAD: 'INCAPACIDAD',
+  ACCIDENTE_TRABAJO: 'ACCIDENTE_TRABAJO',
+  SUSPENSION: 'SUSPENSION',
+  VACACIONES: 'VACACIONES',
+  LICENCIA: 'LICENCIA',
   OTRO: 'OTRO'
 };
-
+ 
 // Semana operativa (jueves a jueves)
 const SEMANA_OPERATIVA = {
   DIA_INICIO: 4, // Jueves (0=Domingo, 4=Jueves)
   DIA_CIERRE: 4  // Jueves
 };
-
+ 
 // Límites y validaciones
 const LIMITES = {
   MAX_PRECIO: 999999999.99,
@@ -101,7 +154,7 @@ const LIMITES = {
   DECIMALES_PRECIO: 2,
   DECIMALES_CANTIDAD: 2
 };
-
+ 
 // Mensajes de error comunes
 const MENSAJES_ERROR = {
   NO_AUTORIZADO: 'No tienes autorización para realizar esta acción',
@@ -120,6 +173,10 @@ const MENSAJES_ERROR = {
 
 module.exports = {
   ESTADOS,
+  ESTADOS_PROYECTO,
+  ESTADOS_PAL,
+  ESTADOS_REGISTRO,
+  ESTADOS_SEMANA,
   UNIDADES_MEDIDA,
   TIPOS_CONTRATO,
   ROLES,

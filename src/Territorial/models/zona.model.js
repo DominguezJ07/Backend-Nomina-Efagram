@@ -10,7 +10,7 @@ const zonaSchema = new mongoose.Schema({
       values: [1, 2, 3],
       message: 'El código debe ser 1 (Norte), 2 (Sur) o 3 (Centro)'
     }
-  },
+  }, 
   nombre: {
     type: String,
     required: [true, 'El nombre de la zona es obligatorio'],

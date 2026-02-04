@@ -4,54 +4,40 @@ const { asyncHandler, ApiError } = require('../../middlewares/errorHandler');
 const logger = require('../../utils/logger');
 
 /**
- * @desc    Registrar un nuevo usuario
+ * @desc    Registrar nuevo usuario
  * @route   POST /api/v1/auth/register
  * @access  Public
  */
 const register = asyncHandler(async (req, res) => {
-  const { nombre, apellidos, email, password, tipo_doc, num_doc, telefono, roles } = req.body;
+  const { email, password, nombre, roles } = req.body;
 
   // Verificar si el usuario ya existe
-  const userExists = await User.findOne({
-    $or: [{ email }, { num_doc }]
-  });
-
+  const userExists = await User.findOne({ email });
   if (userExists) {
-    if (userExists.email === email) {
-      throw new ApiError(409, 'El email ya está registrado');
-    }
-    if (userExists.num_doc === num_doc) {
-      throw new ApiError(409, 'El documento ya está registrado');
-    }
+    throw new ApiError(400, 'El usuario ya existe');
   }
 
   // Crear usuario
   const user = await User.create({
-    nombre,
-    apellidos,
     email,
     password,
-    tipo_doc,
-    num_doc,
-    telefono,
+    nombre,
     roles: roles || ['TRABAJADOR']
   });
 
-  logger.info(`Nuevo usuario registrado: ${user.email}`);
-
   // Generar token
-  const token = generateToken({
-    id: user._id,
-    email: user.email,
-    roles: user.roles,
-    nombre: user.nombre
-  });
+  const token = generateToken(user._id);
 
   res.status(201).json({
     success: true,
     message: 'Usuario registrado exitosamente',
     data: {
-      user: user.toPublicJSON(),
+      user: {
+        _id: user._id,
+        email: user.email,
+        nombre: user.nombre,
+        roles: user.roles
+      },
       token
     }
   });

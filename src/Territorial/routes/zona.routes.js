@@ -15,8 +15,8 @@ const {
 
 const router = express.Router();
 
-// Validaciones
-const zonaValidation = [
+// Validaciones para crear
+const createZonaValidation = [
   body('codigo')
     .isInt({ min: 1, max: 3 })
     .withMessage('El código debe ser 1 (Norte), 2 (Sur) o 3 (Centro)'),
@@ -26,18 +26,37 @@ const zonaValidation = [
   validateRequest
 ];
 
+// Validaciones para actualizar (campos opcionales)
+const updateZonaValidation = [
+  body('codigo')
+    .optional()
+    .isInt({ min: 1, max: 3 })
+    .withMessage('El código debe ser 1 (Norte), 2 (Sur) o 3 (Centro)'),
+  body('nombre')
+    .optional()
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage('El nombre no puede estar vacío'),
+  body('activa')
+    .optional()
+    .isBoolean()
+    .withMessage('El campo activa debe ser verdadero o falso'),
+  validateRequest
+];
+
 // Rutas públicas (solo lectura)
 router.get('/', getZonas);
 router.get('/codigo/:codigo', getZonaByCodigo);
 router.get('/:id', validateMongoId('id'), getZona);
 router.get('/:id/nucleos', validateMongoId('id'), getNucleosByZona);
 
-// Rutas protegidas (solo admin y jefe de operaciones)
+// Rutas protegidas
 router.post(
   '/',
   authenticate,
   authorize(ROLES.ADMIN_SISTEMA, ROLES.JEFE_OPERACIONES),
-  zonaValidation,
+  createZonaValidation,
   createZona
 );
 
@@ -46,7 +65,7 @@ router.put(
   authenticate,
   authorize(ROLES.ADMIN_SISTEMA, ROLES.JEFE_OPERACIONES),
   validateMongoId('id'),
-  zonaValidation,
+  updateZonaValidation,
   updateZona
 );
 

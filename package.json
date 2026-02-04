@@ -7,7 +7,12 @@
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "seed": "node src/infrastructure/db/seeders.js",
-    "seed:users": "node src/infrastructure/db/seedUsers.js"
+    "seed:users": "node src/infrastructure/db/seedUsers.js",
+    "seed:personal": "node src/infrastructure/db/seedPersonal.js",
+    "seed:proyectos": "node src/infrastructure/db/seedProyectos.js",
+    "seed:ejecucion": "node src/infrastructure/db/seedEjecucion.js",
+    "seed:control": "node src/infrastructure/db/seedControlSemanal.js",
+    "seed:all": "npm run seed && npm run seed:users && npm run seed:personal && npm run seed:proyectos && npm run seed:ejecucion && npm run seed:control"
   },
   "keywords": [
     "nomina",
