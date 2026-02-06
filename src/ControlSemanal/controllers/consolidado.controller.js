@@ -59,7 +59,7 @@ const getConsolidado = asyncHandler(async (req, res) => {
  * @access  Private (Admin, Jefe, Supervisor)
  */
 const generarConsolidado = asyncHandler(async (req, res) => {
-  const { semana, trabajador, pal } = req.body;
+  const { semana, trabajador, pal, estado } = req.body;  // ← Agregar estado
 
   // Obtener persona del usuario autenticado (OPCIONAL)
   const persona = await Persona.findOne({ usuario: req.user.id });
@@ -69,7 +69,8 @@ const generarConsolidado = asyncHandler(async (req, res) => {
     semana,
     trabajador,
     pal,
-    consolidadoPorId
+    consolidadoPorId,
+    estado  // ← Pasar estado al servicio
   );
 
   res.status(201).json({

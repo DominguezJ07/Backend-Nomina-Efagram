@@ -9,7 +9,7 @@ class ConsolidadoService {
   /**
    * Generar consolidado semanal para un trabajador y PAL
    */
-  async generarConsolidado(semanaId, trabajadorId, palId, consolidadoPorId) {
+  async generarConsolidado(semanaId, trabajadorId, palId, consolidadoPorId, estado = null) {  // ← AGREGADO parámetro estado
     // Obtener la semana operativa
     const SemanaOperativa = require('../models/semanaOperativa.model');
     const semana = await SemanaOperativa.findById(semanaId);
@@ -66,7 +66,7 @@ class ConsolidadoService {
       rendimiento_esperado,
       dias_con_novedad,
       fecha_consolidacion: new Date(),
-      estado: 'CONSOLIDADO'
+      estado: estado || 'CONSOLIDADO'  // ← MODIFICADO: Usar el estado enviado o 'CONSOLIDADO' por defecto
     };
 
     // Solo agregar consolidado_por si existe

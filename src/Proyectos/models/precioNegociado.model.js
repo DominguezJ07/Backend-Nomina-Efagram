@@ -60,21 +60,36 @@ const precioNegociadoSchema = new mongoose.Schema({
 precioNegociadoSchema.index({ proyecto_actividad_lote: 1, version: 1 });
 precioNegociadoSchema.index({ activo: 1 });
 
-// Al crear un nuevo precio, incrementar versión automáticamente
+// ✅ CORREGIDO: Al usar async/await, NO llamar a next()
 precioNegociadoSchema.pre('save', async function() {
-  if (this.isNew) {
-    const ultimoPrecio = await this.constructor
-      .findOne({ proyecto_actividad_lote: this.proyecto_actividad_lote })
-      .sort({ version: -1 });
-    
-    if (ultimoPrecio) {
-      this.version = ultimoPrecio.version + 1;
+  try {
+    if (this.isNew) {
+      console.log('=== PRE SAVE MIDDLEWARE ===');
+      console.log('Buscando último precio para PAL:', this.proyecto_actividad_lote);
       
-      // Desactivar el precio anterior
-      ultimoPrecio.activo = false;
-      ultimoPrecio.fecha_vigencia_hasta = new Date();
-      await ultimoPrecio.save();
+      const ultimoPrecio = await this.constructor
+        .findOne({ proyecto_actividad_lote: this.proyecto_actividad_lote })
+        .sort({ version: -1 });
+      
+      console.log('Último precio encontrado:', ultimoPrecio);
+      
+      if (ultimoPrecio) {
+        this.version = ultimoPrecio.version + 1;
+        console.log('Nueva versión asignada:', this.version);
+        
+        // Desactivar el precio anterior
+        ultimoPrecio.activo = false;
+        ultimoPrecio.fecha_vigencia_hasta = new Date();
+        await ultimoPrecio.save();
+        console.log('Precio anterior desactivado');
+      } else {
+        console.log('Es el primer precio para este PAL, versión = 1');
+      }
     }
+    // ✅ NO hay return next() aquí
+  } catch (error) {
+    console.error('Error en pre save middleware:', error);
+    throw error; // ✅ Lanzar error directamente
   }
 });
 

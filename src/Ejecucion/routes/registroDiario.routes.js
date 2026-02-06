@@ -51,25 +51,40 @@ const registroValidation = [
 // Todas las rutas requieren autenticación
 router.use(authenticate);
 
-// Rutas especiales
-router.get('/resumen/:trabajadorId',
+// Rutas especiales (antes de las rutas con :id)
+router.get(
+  '/resumen/:trabajadorId',
   validateMongoId('trabajadorId'),
   [
-    query('fecha_inicio').notEmpty().withMessage('Fecha inicio obligatoria').isISO8601(),
-    query('fecha_fin').notEmpty().withMessage('Fecha fin obligatoria').isISO8601(),
+    query('fecha_inicio')
+      .notEmpty()
+      .withMessage('Fecha inicio obligatoria')
+      .isISO8601()
+      .withMessage('Fecha inválida'),
+    query('fecha_fin')
+      .notEmpty()
+      .withMessage('Fecha fin obligatoria')
+      .isISO8601()
+      .withMessage('Fecha inválida'),
     validateRequest
   ],
   getResumenTrabajador
 );
 
-router.get('/semana/:semanaId',
+router.get(
+  '/semana/:semanaId',
   validateMongoId('semanaId'),
   getRegistrosSemana
 );
 
 // Rutas CRUD
 router.get('/', getRegistros);
-router.get('/:id', validateMongoId('id'), getRegistro);
+
+router.get(
+  '/:id',
+  validateMongoId('id'),
+  getRegistro
+);
 
 router.post(
   '/',

@@ -63,11 +63,12 @@ const registroDiarioSchema = new mongoose.Schema({
     default: '17:00'
   },
   
-  // Supervisor que registra
+  // Supervisor que registra (OPCIONAL)
   registrado_por: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Persona',
-    required: [true, 'El supervisor que registra es obligatorio']
+    required: false,
+    default: null
   },
   
   // Observaciones

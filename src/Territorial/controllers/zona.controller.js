@@ -47,7 +47,7 @@ const getZona = asyncHandler(async (req, res) => {
  * @access  Public
  */
 const getZonaByCodigo = asyncHandler(async (req, res) => {
-  const zona = await Zona.findByCodigo(parseInt(req.params.codigo));
+  const zona = await Zona.findByCodigo(req.params.codigo);
 
   if (!zona) {
     throw new ApiError(404, 'Zona no encontrada');
@@ -87,9 +87,9 @@ const updateZona = asyncHandler(async (req, res) => {
   }
 
   // Verificar si el código está cambiando y si ya existe
-  if (req.body.codigo && req.body.codigo !== zona.codigo) {
+  if (req.body.codigo && req.body.codigo.toUpperCase() !== zona.codigo) {
     const existeCodigo = await Zona.findOne({ 
-      codigo: req.body.codigo,
+      codigo: req.body.codigo.toUpperCase(),
       _id: { $ne: req.params.id }
     });
     
@@ -111,7 +111,7 @@ const updateZona = asyncHandler(async (req, res) => {
   }
 
   // Actualizar solo los campos permitidos
-  const camposPermitidos = ['nombre', 'codigo', 'activa'];
+  const camposPermitidos = ['nombre', 'codigo', 'descripcion', 'activa'];
   camposPermitidos.forEach(campo => {
     if (req.body[campo] !== undefined) {
       zona[campo] = req.body[campo];

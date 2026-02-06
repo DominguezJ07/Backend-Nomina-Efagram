@@ -1,4 +1,5 @@
 const Cuadrilla = require('../models/cuadrilla.model');
+const Persona = require('../models/persona.model'); // ✅ LÍNEA AGREGADA
 const cuadrillaService = require('../services/cuadrilla.service');
 const { asyncHandler, ApiError } = require('../../middlewares/errorHandler');
 
@@ -139,25 +140,55 @@ const updateCuadrilla = asyncHandler(async (req, res) => {
 });
 
 /**
- * @desc    Agregar miembros a una cuadrilla
+ * @desc    Agregar miembro a cuadrilla
  * @route   POST /api/v1/cuadrillas/:id/miembros
  * @access  Private (Admin, Jefe Operaciones, Supervisor)
  */
 const agregarMiembros = asyncHandler(async (req, res) => {
-  const { personalId } = req.body;
-
-  if (!personalId) {
+  const { personaId } = req.body;
+  
+  if (!personaId) {
     throw new ApiError(400, 'Debe proporcionar el ID de la persona');
   }
 
-  // Convertir a array si es un solo ID
-  const personasArray = Array.isArray(personalId) ? personalId : [personalId];
+  const cuadrilla = await Cuadrilla.findById(req.params.id);
 
-  const cuadrilla = await cuadrillaService.agregarMiembros(req.params.id, personasArray);
+  if (!cuadrilla) {
+    throw new ApiError(404, 'Cuadrilla no encontrada');
+  }
+
+  // ✅ Verificar que la persona existe
+  const persona = await Persona.findById(personaId);
+  if (!persona) {
+    throw new ApiError(404, 'Persona no encontrada');
+  }
+
+  // ✅ CORREGIDO: Verificar si ya es miembro ACTIVO
+  const yaMiembro = cuadrilla.miembros.some(
+    miembro => miembro.persona.toString() === personaId && miembro.activo
+  );
+
+  if (yaMiembro) {
+    throw new ApiError(409, 'La persona ya es miembro activo de esta cuadrilla');
+  }
+
+  // ✅ Agregar miembro con estructura correcta
+  cuadrilla.miembros.push({
+    persona: personaId,
+    fecha_ingreso: new Date(),
+    activo: true
+  });
+  
+  await cuadrilla.save();
+
+  // Poblar datos para respuesta
+  await cuadrilla.populate('miembros.persona');
+  await cuadrilla.populate('supervisor');
+  await cuadrilla.populate('nucleo');
 
   res.status(200).json({
     success: true,
-    message: 'Miembro(s) agregado(s) exitosamente',
+    message: 'Miembro agregado exitosamente',
     data: cuadrilla
   });
 });

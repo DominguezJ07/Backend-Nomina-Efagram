@@ -1,25 +1,24 @@
 const mongoose = require('mongoose');
-const { ZONAS } = require('../../config/constants');
 
 const zonaSchema = new mongoose.Schema({
   codigo: {
-    type: Number,
+    type: String,  // Cambiado de Number a String
     required: [true, 'El código de zona es obligatorio'],
     unique: true,
-    enum: {
-      values: [1, 2, 3],
-      message: 'El código debe ser 1 (Norte), 2 (Sur) o 3 (Centro)'
-    }
+    trim: true,
+    uppercase: true,
+    match: [/^ZONA-\d{2}$/, 'El código debe tener el formato ZONA-XX (ej: ZONA-01)']
   }, 
   nombre: {
     type: String,
     required: [true, 'El nombre de la zona es obligatorio'],
     unique: true,
-    trim: true,
-    enum: {
-      values: ['Norte', 'Sur', 'Centro'],
-      message: 'El nombre debe ser Norte, Sur o Centro'
-    }
+    trim: true
+    // Eliminamos el enum para permitir cualquier nombre
+  },
+  descripcion: {  // Campo nuevo
+    type: String,
+    trim: true
   },
   activa: {
     type: Boolean,
@@ -36,7 +35,7 @@ zonaSchema.index({ nombre: 1 });
 
 // Método para obtener zona por código
 zonaSchema.statics.findByCodigo = function(codigo) {
-  return this.findOne({ codigo, activa: true });
+  return this.findOne({ codigo: codigo.toUpperCase(), activa: true });
 };
 
 // Virtual para obtener núcleos de la zona

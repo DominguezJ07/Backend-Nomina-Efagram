@@ -131,12 +131,14 @@ const updateSemana = asyncHandler(async (req, res) => {
  * @access  Private (Admin, Jefe)
  */
 const cerrarSemana = asyncHandler(async (req, res) => {
-  const persona = await Persona.findOne({ usuario: req.user.id });
-  if (!persona) {
-    throw new ApiError(404, 'Persona no encontrada');
-  }
+  // Buscar persona asociada al usuario
+  let persona = await Persona.findOne({ usuario: req.user.id });
+  
+  // Si no existe persona asociada, usar el ID del usuario directamente
+  // Esto permite que administradores sin perfil de persona puedan cerrar semanas
+  const cerradoPorId = persona ? persona._id : req.user.id;
 
-  const semana = await semanaService.cerrarSemana(req.params.id, persona._id);
+  const semana = await semanaService.cerrarSemana(req.params.id, cerradoPorId);
 
   await semana.populate(['proyecto', 'nucleo', 'cerrada_por']);
 

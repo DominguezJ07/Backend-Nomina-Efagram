@@ -12,10 +12,15 @@ const { asyncHandler, ApiError } = require('../../middlewares/errorHandler');
 const getRegistros = asyncHandler(async (req, res) => {
   const { trabajador, pal, fecha_inicio, fecha_fin, estado } = req.query;
 
+  console.log('Query params:', req.query);
+  console.log('Trabajador:', trabajador);
+
   const filter = {};
   if (trabajador) filter.trabajador = trabajador;
   if (pal) filter.proyecto_actividad_lote = pal;
   if (estado) filter.estado = estado;
+
+  console.log('Filter:', filter);
 
   if (fecha_inicio && fecha_fin) {
     filter.fecha = {
@@ -30,6 +35,8 @@ const getRegistros = asyncHandler(async (req, res) => {
     .populate('cuadrilla')
     .populate('registrado_por')
     .sort({ fecha: -1 });
+
+  console.log('Registros encontrados:', registros.length);
 
   res.status(200).json({
     success: true,
@@ -62,79 +69,108 @@ const getRegistro = asyncHandler(async (req, res) => {
 });
 
 /**
- * @desc    Crear un registro diario
+ * @desc    Crear registro diario
  * @route   POST /api/v1/registros-diarios
- * @access  Private (Supervisor, Jefe, Admin)
+ * @access  Private (Admin, Jefe, Supervisor)
  */
 const createRegistro = asyncHandler(async (req, res) => {
-  // Obtener persona del usuario autenticado
+  const { fecha, trabajador, proyecto_actividad_lote, cuadrilla, cantidad_ejecutada, horas_trabajadas, hora_inicio, hora_fin, observaciones } = req.body;
+
+  // Obtener persona del usuario autenticado (OPCIONAL)
   const persona = await Persona.findOne({ usuario: req.user.id });
-  if (!persona) {
-    throw new ApiError(404, 'Persona no encontrada para el usuario autenticado');
+  const registradoPorId = persona ? persona._id : null;
+
+  // Verificar acceso del supervisor (si es supervisor)
+  if (req.user.roles.includes('SUPERVISOR') && persona) {
+    const tieneAcceso = await registroDiarioService.verificarAccesoSupervisor(
+      persona._id,
+      proyecto_actividad_lote
+    );
+
+    if (!tieneAcceso) {
+      throw new ApiError(403, 'No tiene acceso a este PAL');
+    }
   }
 
-  // Verificar que el supervisor tenga acceso al lote
-  await registroDiarioService.verificarAccesoSupervisor(persona._id, req.body.proyecto_actividad_lote);
+  // Validar que no exista registro duplicado
+  await registroDiarioService.validarRegistroUnico(fecha, trabajador, proyecto_actividad_lote);
 
-  // Validar que no exista un registro duplicado
-  await registroDiarioService.validarRegistroUnico(
-    req.body.fecha,
-    req.body.trabajador,
-    req.body.proyecto_actividad_lote
-  );
-
-  // Generar código único
-  const fecha = new Date(req.body.fecha);
-  const fechaStr = fecha.toISOString().split('T')[0].replace(/-/g, '');
-  const count = await RegistroDiario.countDocuments({ fecha });
-  const codigo = `RD-${fechaStr}-${String(count + 1).padStart(4, '0')}`;
+  // Generar código
+  const count = await RegistroDiario.countDocuments();
+  const codigo = `REG-${new Date(fecha).toISOString().split('T')[0].replace(/-/g, '')}-${String(count + 1).padStart(4, '0')}`;
 
   // Crear registro
   const registro = await RegistroDiario.create({
-    ...req.body,
     codigo,
-    registrado_por: persona._id
+    fecha,
+    trabajador,
+    proyecto_actividad_lote,
+    cuadrilla,
+    cantidad_ejecutada,
+    horas_trabajadas,
+    hora_inicio,
+    hora_fin,
+    registrado_por: registradoPorId,
+    observaciones
   });
 
   // Actualizar cantidad ejecutada del PAL
-  await registroDiarioService.actualizarCantidadPAL(req.body.proyecto_actividad_lote);
+  await registroDiarioService.actualizarCantidadPAL(proyecto_actividad_lote);
 
-  // Crear o actualizar semana operativa
-  await semanaService.getOrCreateSemana(req.body.fecha);
+  // Obtener o crear semana operativa
+  //const semanaService = require('../services/semana.service');
+  //await semanaService.getOrCreateSemana(new Date(fecha), proyecto_actividad_lote);
 
   await registro.populate(['trabajador', 'proyecto_actividad_lote', 'cuadrilla', 'registrado_por']);
 
   res.status(201).json({
     success: true,
-    message: 'Registro creado exitosamente',
+    message: 'Registro diario creado exitosamente',
     data: registro
   });
 });
 
 /**
- * @desc    Actualizar un registro diario
+ * @desc    Actualizar registro diario
  * @route   PUT /api/v1/registros-diarios/:id
- * @access  Private (Supervisor hasta jueves, Jefe después)
+ * @access  Private (Admin, Jefe, Supervisor)
  */
 const updateRegistro = asyncHandler(async (req, res) => {
-  const registro = await registroDiarioService.validateRegistroExists(req.params.id);
+  let registro = await RegistroDiario.findById(req.params.id);
 
-  // Verificar permisos de edición
-  const validacion = registroDiarioService.puedeEditar(registro, req.user.roles);
-  if (!validacion.puede) {
-    throw new ApiError(403, validacion.motivo);
+  if (!registro) {
+    throw new ApiError(404, 'Registro no encontrado');
   }
 
-  // Obtener persona del usuario
+  // Obtener persona (OPCIONAL)
   const persona = await Persona.findOne({ usuario: req.user.id });
+  
+  // Verificar permisos de edición
+  if (persona) {
+    const resultado = registroDiarioService.puedeEditar(registro, req.user.roles);
 
-  // Marcar como editado si es una modificación sustancial
-  if (req.body.cantidad_ejecutada && req.body.cantidad_ejecutada !== registro.cantidad_ejecutada) {
-    await registro.marcarEditado(persona._id, req.body.motivo_edicion || 'Corrección de cantidad');
+    if (!resultado.puede) {
+      throw new ApiError(403, resultado.motivo);
+    }
   }
+
+  const { cantidad_ejecutada, horas_trabajadas, hora_inicio, hora_fin, observaciones, motivo_edicion } = req.body;
 
   // Actualizar campos
-  Object.assign(registro, req.body);
+  if (cantidad_ejecutada !== undefined) registro.cantidad_ejecutada = cantidad_ejecutada;
+  if (horas_trabajadas !== undefined) registro.horas_trabajadas = horas_trabajadas;
+  if (hora_inicio !== undefined) registro.hora_inicio = hora_inicio;
+  if (hora_fin !== undefined) registro.hora_fin = hora_fin;
+  if (observaciones !== undefined) registro.observaciones = observaciones;
+
+  // Marcar como editado
+  if (persona && motivo_edicion) {
+    registro.editado = true;
+    registro.fecha_edicion = new Date();
+    registro.editado_por = persona._id;
+    registro.motivo_edicion = motivo_edicion;
+  }
+
   await registro.save();
 
   // Actualizar cantidad del PAL

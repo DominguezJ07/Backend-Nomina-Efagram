@@ -71,9 +71,11 @@ const updateCuadrillaValidation = [
 
 // Validación para agregar miembros
 const agregarMiembrosValidation = [
-  body('personalId')
+  body('personaId') 
     .notEmpty()
-    .withMessage('El ID de la persona es obligatorio'),
+    .withMessage('El ID de la persona es obligatorio')
+    .isMongoId()
+    .withMessage('El ID de la persona no es válido'),
   validateRequest
 ];
 

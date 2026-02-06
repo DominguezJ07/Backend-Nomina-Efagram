@@ -18,11 +18,19 @@ const router = express.Router();
 // Validaciones para crear
 const createZonaValidation = [
   body('codigo')
-    .isInt({ min: 1, max: 3 })
-    .withMessage('El código debe ser 1 (Norte), 2 (Sur) o 3 (Centro)'),
+    .notEmpty()
+    .withMessage('El código es obligatorio')
+    .matches(/^ZONA-\d{2}$/)
+    .withMessage('El código debe tener el formato ZONA-XX (ej: ZONA-01, ZONA-04)'),
   body('nombre')
-    .isIn(['Norte', 'Sur', 'Centro'])
-    .withMessage('El nombre debe ser Norte, Sur o Centro'),
+    .notEmpty()
+    .withMessage('El nombre es obligatorio')
+    .isString()
+    .trim(),
+  body('descripcion')
+    .optional()
+    .isString()
+    .trim(),
   validateRequest
 ];
 
@@ -30,14 +38,22 @@ const createZonaValidation = [
 const updateZonaValidation = [
   body('codigo')
     .optional()
-    .isInt({ min: 1, max: 3 })
-    .withMessage('El código debe ser 1 (Norte), 2 (Sur) o 3 (Centro)'),
+    .custom((value) => {
+      if (value && !value.match(/^ZONA-\d{2}$/)) {
+        throw new Error('El código debe tener el formato ZONA-XX');
+      }
+      return true;
+    }),
   body('nombre')
     .optional()
     .isString()
     .trim()
     .notEmpty()
     .withMessage('El nombre no puede estar vacío'),
+  body('descripcion')
+    .optional()
+    .isString()
+    .trim(),
   body('activa')
     .optional()
     .isBoolean()

@@ -64,7 +64,16 @@ const novedadSchema = new mongoose.Schema({
     type: Date
   },
   fecha_fin: {
-    type: Date
+    type: Date,
+    validate: {
+      validator: function(value) {
+        // Si no hay fecha_fin o fecha_inicio, es válido
+        if (!value || !this.fecha_inicio) return true;
+        // Si hay ambas, fecha_fin debe ser >= fecha_inicio
+        return value >= this.fecha_inicio;
+      },
+      message: 'La fecha fin no puede ser anterior a la fecha inicio'
+    }
   },
   
   // Documentos de soporte
@@ -118,17 +127,11 @@ const novedadSchema = new mongoose.Schema({
   versionKey: false
 });
 
-// Índices
+// Índices compuestos para mejorar rendimiento
 novedadSchema.index({ trabajador: 1, fecha: -1 });
 novedadSchema.index({ tipo: 1, fecha: -1 });
 novedadSchema.index({ estado: 1 });
-
-// Validación: fecha_fin debe ser >= fecha_inicio
-novedadSchema.pre('save', function() {
-  if (this.fecha_inicio && this.fecha_fin && this.fecha_fin < this.fecha_inicio) {
-    throw new Error('La fecha fin no puede ser anterior a la fecha inicio');
-  }
-});
+novedadSchema.index({ codigo: 1 }, { unique: true });
 
 // Método para aprobar
 novedadSchema.methods.aprobar = function(aprobadoPorId) {

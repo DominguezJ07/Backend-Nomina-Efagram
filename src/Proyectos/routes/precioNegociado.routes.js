@@ -11,7 +11,7 @@ const {
 
 const router = express.Router();
 
-// Validaciones
+// Validaciones para crear precio negociado
 const precioNegociadoValidation = [
   body('proyecto_actividad_lote')
     .notEmpty()
@@ -23,28 +23,39 @@ const precioNegociadoValidation = [
     .withMessage('El precio acordado es obligatorio')
     .isFloat({ min: 0 })
     .withMessage('El precio debe ser un número positivo'),
+  body('fecha_negociacion')
+    .optional()
+    .isISO8601()
+    .withMessage('Fecha de negociación inválida'),
   body('negociado_por')
     .optional()
     .isMongoId()
     .withMessage('ID de negociador inválido'),
   body('autorizado_por')
-    .optional() 
+    .optional()
     .isMongoId()
     .withMessage('ID de autorizador inválido'),
   body('motivo')
     .optional()
-    .trim(),
+    .trim()
+    .isLength({ max: 500 })
+    .withMessage('El motivo no puede exceder 500 caracteres'),
+  body('observaciones')
+    .optional()
+    .trim()
+    .isLength({ max: 1000 })
+    .withMessage('Las observaciones no pueden exceder 1000 caracteres'),
   validateRequest
 ];
 
 // Todas las rutas requieren autenticación
 router.use(authenticate);
 
-// Rutas de consulta
+// Rutas de consulta (cualquier usuario autenticado)
 router.get('/', getPreciosNegociados);
 router.get('/historial/:palId', validateMongoId('palId'), getHistorialPrecios);
 
-// Rutas de modificación
+// Rutas de modificación (solo roles autorizados)
 router.post(
   '/',
   authorize(ROLES.ADMIN_SISTEMA, ROLES.JEFE_OPERACIONES, ROLES.SUPERVISOR),

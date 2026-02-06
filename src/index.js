@@ -131,7 +131,7 @@ apiRouter.use('/personas', personaRoutes);
 apiRouter.use('/roles', rolRoutes);
 apiRouter.use('/persona-roles', personaRolRoutes);
 apiRouter.use('/cuadrillas', cuadrillaRoutes);
-apiRouter.use('/asignaciones', asignacionRoutes);
+apiRouter.use('/asignaciones-supervisor', asignacionRoutes); // ✅ CORREGIDO AQUÍ
 
 // Montar rutas de Proyectos
 apiRouter.use('/clientes', clienteRoutes);

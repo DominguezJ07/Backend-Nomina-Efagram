@@ -1,33 +1,78 @@
 const AsignacionSupervisor = require('../models/asignacionSupervisor.model');
-const asignacionService = require('../services/asignacion.service');
-const personaService = require('../services/persona.service');
-const territorialService = require('../../Territorial/services/territorial.service');
+const Persona = require('../models/persona.model');
+const Lote = require('../../Territorial/models/lote.model');
 const { asyncHandler, ApiError } = require('../../middlewares/errorHandler');
 
 /**
- * @desc    Obtener todas las asignaciones de supervisores
+ * @desc    Obtener todas las asignaciones
  * @route   GET /api/v1/asignaciones-supervisor
  * @access  Private
  */
 const getAsignaciones = asyncHandler(async (req, res) => {
-  const { supervisor, nucleo, activa } = req.query;
+  const { activa, supervisor, lote } = req.query;
 
   const filter = {};
-  if (supervisor) filter.supervisor = supervisor;
-  if (nucleo) filter.nucleo = nucleo;
   if (activa !== undefined) filter.activa = activa === 'true';
+  if (supervisor) filter.supervisor = supervisor;
+  if (lote) filter.lote = lote;
 
   const asignaciones = await AsignacionSupervisor.find(filter)
-    .populate('supervisor')
-    .populate('zona')
-    .populate('nucleo')
-    .populate('finca')
-    .populate('lote')
+    .populate('supervisor', 'nombres apellidos cedula')
+    .populate({
+      path: 'lote',
+      select: 'codigo nombre area finca',
+      populate: {
+        path: 'finca',
+        select: 'codigo nombre'
+      }
+    })
     .sort({ fecha_inicio: -1 });
 
   res.status(200).json({
     success: true,
     count: asignaciones.length,
+    data: asignaciones
+  });
+});
+
+/**
+ * @desc    Obtener asignaciones de un supervisor específico
+ * @route   GET /api/v1/asignaciones-supervisor/supervisor/:supervisorId
+ * @access  Private
+ */
+const getAsignacionesBySupervisor = asyncHandler(async (req, res) => {
+  const { supervisorId } = req.params;
+  const { activa } = req.query;
+
+  // Validar que el supervisor existe
+  const supervisor = await Persona.findById(supervisorId);
+  if (!supervisor) {
+    throw new ApiError(404, 'Supervisor no encontrado');
+  }
+
+  const filter = { supervisor: supervisorId };
+  if (activa !== undefined) filter.activa = activa === 'true';
+
+  const asignaciones = await AsignacionSupervisor.find(filter)
+    .populate('supervisor', 'nombres apellidos cedula')
+    .populate({
+      path: 'lote',
+      select: 'codigo nombre area finca',
+      populate: {
+        path: 'finca',
+        select: 'codigo nombre'
+      }
+    })
+    .sort({ fecha_inicio: -1 });
+
+  res.status(200).json({
+    success: true,
+    count: asignaciones.length,
+    supervisor: {
+      id: supervisor._id,
+      nombre: `${supervisor.nombres} ${supervisor.apellidos}`,
+      cedula: supervisor.cedula
+    },
     data: asignaciones
   });
 });
@@ -39,11 +84,15 @@ const getAsignaciones = asyncHandler(async (req, res) => {
  */
 const getAsignacion = asyncHandler(async (req, res) => {
   const asignacion = await AsignacionSupervisor.findById(req.params.id)
-    .populate('supervisor')
-    .populate('zona')
-    .populate('nucleo')
-    .populate('finca')
-    .populate('lote');
+    .populate('supervisor', 'nombres apellidos cedula')
+    .populate({
+      path: 'lote',
+      select: 'codigo nombre area finca',
+      populate: {
+        path: 'finca',
+        select: 'codigo nombre'
+      }
+    });
 
   if (!asignacion) {
     throw new ApiError(404, 'Asignación no encontrada');
@@ -61,27 +110,55 @@ const getAsignacion = asyncHandler(async (req, res) => {
  * @access  Private (Admin, Jefe Operaciones)
  */
 const createAsignacion = asyncHandler(async (req, res) => {
-  // Validar que el supervisor exista
-  await personaService.validatePersonaExists(req.body.supervisor);
+  const { supervisor, lote, fecha_inicio, observaciones } = req.body;
 
-  // Validar que el núcleo exista
-  await territorialService.validateNucleoExists(req.body.nucleo);
-
-  // Si se asigna finca, validar que pertenezca al núcleo
-  if (req.body.finca) {
-    await territorialService.validateFincaExists(req.body.finca, req.body.nucleo);
+  // Validar que el supervisor existe y está activo
+  const supervisorDoc = await Persona.findById(supervisor);
+  if (!supervisorDoc) {
+    throw new ApiError(404, 'Supervisor no encontrado');
+  }
+  if (supervisorDoc.estado !== 'ACTIVO') {
+    throw new ApiError(400, 'El supervisor no está activo');
   }
 
-  // Si se asigna lote, validar que pertenezca a la finca
-  if (req.body.lote) {
-    if (!req.body.finca) {
-      throw new ApiError(400, 'Debe especificar la finca para asignar un lote');
+  // Validar que el lote existe y está activo
+  const loteDoc = await Lote.findById(lote);
+  if (!loteDoc) {
+    throw new ApiError(404, 'Lote no encontrado');
+  }
+  if (!loteDoc.activo) {
+    throw new ApiError(400, 'El lote no está activo');
+  }
+
+  // Verificar si ya existe una asignación activa para este lote
+  const asignacionExistente = await AsignacionSupervisor.findOne({
+    lote: lote,
+    activa: true
+  });
+
+  if (asignacionExistente) {
+    throw new ApiError(409, 'Ya existe una asignación activa para este lote');
+  }
+
+  // Crear la asignación
+  const asignacion = await AsignacionSupervisor.create({
+    supervisor,
+    lote,
+    fecha_inicio: fecha_inicio || new Date(),
+    observaciones,
+    activa: true
+  });
+
+  // Populate para respuesta
+  await asignacion.populate('supervisor', 'nombres apellidos cedula');
+  await asignacion.populate({
+    path: 'lote',
+    select: 'codigo nombre area finca',
+    populate: {
+      path: 'finca',
+      select: 'codigo nombre'
     }
-    await territorialService.validateLoteExists(req.body.lote, req.body.finca);
-  }
-
-  const asignacion = await AsignacionSupervisor.create(req.body);
-  await asignacion.populate(['supervisor', 'zona', 'nucleo', 'finca', 'lote']);
+  });
 
   res.status(201).json({
     success: true,
@@ -96,17 +173,65 @@ const createAsignacion = asyncHandler(async (req, res) => {
  * @access  Private (Admin, Jefe Operaciones)
  */
 const updateAsignacion = asyncHandler(async (req, res) => {
-  let asignacion = await AsignacionSupervisor.findById(req.params.id);
+  const asignacion = await AsignacionSupervisor.findById(req.params.id);
 
   if (!asignacion) {
     throw new ApiError(404, 'Asignación no encontrada');
   }
 
-  asignacion = await AsignacionSupervisor.findByIdAndUpdate(
-    req.params.id,
-    req.body,
-    { new: true, runValidators: true }
-  ).populate(['supervisor', 'zona', 'nucleo', 'finca', 'lote']);
+  // Si se cambia el supervisor, validar que exista
+  if (req.body.supervisor && req.body.supervisor !== asignacion.supervisor.toString()) {
+    const supervisor = await Persona.findById(req.body.supervisor);
+    if (!supervisor) {
+      throw new ApiError(404, 'Supervisor no encontrado');
+    }
+    if (supervisor.estado !== 'ACTIVO') {
+      throw new ApiError(400, 'El supervisor no está activo');
+    }
+  }
+
+  // Si se cambia el lote, validar que exista
+  if (req.body.lote) {
+    const loteDoc = await Lote.findById(req.body.lote);
+    if (!loteDoc) {
+      throw new ApiError(404, 'Lote no encontrado');
+    }
+    if (!loteDoc.activo) {
+      throw new ApiError(400, 'El lote no está activo');
+    }
+
+    // Verificar que no haya otra asignación activa para ese lote
+    if (req.body.lote !== asignacion.lote.toString()) {
+      const asignacionExistente = await AsignacionSupervisor.findOne({
+        lote: req.body.lote,
+        activa: true,
+        _id: { $ne: req.params.id }
+      });
+
+      if (asignacionExistente) {
+        throw new ApiError(409, 'Ya existe una asignación activa para este lote');
+      }
+    }
+  }
+
+  // Actualizar campos permitidos
+  const camposPermitidos = ['supervisor', 'lote', 'fecha_inicio', 'observaciones'];
+  camposPermitidos.forEach(campo => {
+    if (req.body[campo] !== undefined) {
+      asignacion[campo] = req.body[campo];
+    }
+  });
+
+  await asignacion.save();
+  await asignacion.populate('supervisor', 'nombres apellidos cedula');
+  await asignacion.populate({
+    path: 'lote',
+    select: 'codigo nombre area finca',
+    populate: {
+      path: 'finca',
+      select: 'codigo nombre'
+    }
+  });
 
   res.status(200).json({
     success: true,
@@ -121,6 +246,7 @@ const updateAsignacion = asyncHandler(async (req, res) => {
  * @access  Private (Admin, Jefe Operaciones)
  */
 const finalizarAsignacion = asyncHandler(async (req, res) => {
+  // ✅ CORREGIDO: Buscar sin populate primero
   const asignacion = await AsignacionSupervisor.findById(req.params.id);
 
   if (!asignacion) {
@@ -131,9 +257,29 @@ const finalizarAsignacion = asyncHandler(async (req, res) => {
     throw new ApiError(400, 'La asignación ya está finalizada');
   }
 
+  const { fecha_fin, observaciones } = req.body;
+
+  // ✅ CORREGIDO: Actualizar directamente en lugar de usar el método
   asignacion.activa = false;
-  asignacion.fecha_fin = new Date();
+  asignacion.fecha_fin = fecha_fin || new Date();
+  
+  if (observaciones) {
+    asignacion.observaciones = observaciones;
+  }
+
+  // Guardar cambios
   await asignacion.save();
+
+  // Ahora sí hacer populate para la respuesta
+  await asignacion.populate('supervisor', 'nombres apellidos cedula');
+  await asignacion.populate({
+    path: 'lote',
+    select: 'codigo nombre area finca',
+    populate: {
+      path: 'finca',
+      select: 'codigo nombre'
+    }
+  });
 
   res.status(200).json({
     success: true,
@@ -143,30 +289,35 @@ const finalizarAsignacion = asyncHandler(async (req, res) => {
 });
 
 /**
- * @desc    Verificar acceso de supervisor a un lote
- * @route   GET /api/v1/asignaciones-supervisor/verificar-acceso/:supervisorId/:loteId
- * @access  Private
+ * @desc    Eliminar una asignación (solo si no está activa)
+ * @route   DELETE /api/v1/asignaciones-supervisor/:id
+ * @access  Private (Admin)
  */
-const verificarAcceso = asyncHandler(async (req, res) => {
-  const { supervisorId, loteId } = req.params;
+const deleteAsignacion = asyncHandler(async (req, res) => {
+  const asignacion = await AsignacionSupervisor.findById(req.params.id);
 
-  const tieneAcceso = await asignacionService.verificarAccesoSupervisor(supervisorId, loteId);
+  if (!asignacion) {
+    throw new ApiError(404, 'Asignación no encontrada');
+  }
+
+  if (asignacion.activa) {
+    throw new ApiError(400, 'No se puede eliminar una asignación activa. Primero finalízala.');
+  }
+
+  await asignacion.deleteOne();
 
   res.status(200).json({
     success: true,
-    data: {
-      tieneAcceso,
-      supervisor: supervisorId,
-      lote: loteId
-    }
+    message: 'Asignación eliminada exitosamente'
   });
 });
 
 module.exports = {
   getAsignaciones,
+  getAsignacionesBySupervisor,
   getAsignacion,
   createAsignacion,
   updateAsignacion,
   finalizarAsignacion,
-  verificarAcceso
+  deleteAsignacion
 };

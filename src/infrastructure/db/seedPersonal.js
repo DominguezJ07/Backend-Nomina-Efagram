@@ -5,6 +5,7 @@ const Rol = require('../../Personal/models/rol.model');
 const PersonaRol = require('../../Personal/models/personaRol.model');
 const Cuadrilla = require('../../Personal/models/cuadrilla.model');
 const AsignacionSupervisor = require('../../Personal/models/asignacionSupervisor.model');
+const AsignacionTrabajador = require('../../Personal/models/asignacionTrabajador.model');
 const Zona = require('../../Territorial/models/zona.model');
 const Nucleo = require('../../Territorial/models/nucleo.model');
 const Finca = require('../../Territorial/models/finca.model');
@@ -22,6 +23,7 @@ const seedPersonal = async () => {
 
     // Limpiar datos anteriores
     await Promise.all([
+      AsignacionTrabajador.deleteMany({}),
       AsignacionSupervisor.deleteMany({}),
       Cuadrilla.deleteMany({}),
       PersonaRol.deleteMany({}),
@@ -30,9 +32,10 @@ const seedPersonal = async () => {
     ]);
     logger.info('Datos anteriores de Personal eliminados');
 
-    //CREAR ROLES
-    
-    logger.info('\n Creando roles...');
+    // ============================================
+    // PASO 1: CREAR ROLES
+    // ============================================
+    logger.info('\n📋 Creando roles...');
 
     const rolesData = [
       {
@@ -89,14 +92,14 @@ const seedPersonal = async () => {
     // ============================================
     // PASO 2: BUSCAR ENTIDADES EXISTENTES
     // ============================================
-    logger.info('\n Buscando entidades territoriales...');
+    logger.info('\n🔍 Buscando entidades territoriales...');
 
     // Buscar zonas
     const zonaCentro = await Zona.findOne({ codigo: 3 });
     const zonaSur = await Zona.findOne({ codigo: 2 });
 
     if (!zonaCentro || !zonaSur) {
-      logger.warn('No se encontraron zonas. Ejecute primero: npm run seed (seeders territoriales)');
+      logger.warn('⚠️ No se encontraron zonas. Ejecute primero: npm run seed (seeders territoriales)');
       process.exit(0);
     }
 
@@ -105,12 +108,23 @@ const seedPersonal = async () => {
     const nucleoCali = await Nucleo.findOne({ zona: zonaSur._id });
 
     if (!nucleoPopayan || !nucleoCali) {
-      logger.warn(' No se encontraron núcleos');
+      logger.warn('⚠️ No se encontraron núcleos');
       process.exit(0);
     }
 
     // Buscar fincas
     const fincaParaiso = await Finca.findOne({ nucleo: nucleoPopayan._id });
+    const fincaCali = await Finca.findOne({ nucleo: nucleoCali._id });
+
+    // Buscar ProyectoActividadLote (si existe el modelo)
+    let proyectoActividadesLotes = [];
+    try {
+      const ProyectoActividadLote = require('../../Proyectos/models/proyectoActividadLote.model');
+      proyectoActividadesLotes = await ProyectoActividadLote.find({ estado: 'EN_EJECUCION' }).limit(5);
+      logger.success(`Encontrados ${proyectoActividadesLotes.length} ProyectoActividadLote`);
+    } catch (error) {
+      logger.warn('⚠️ No se encontró el modelo ProyectoActividadLote. Las asignaciones de trabajadores se crearán sin proyecto.');
+    }
 
     // Buscar usuarios
     const adminUser = await User.findOne({ email: 'admin@efagram.com' });
@@ -226,7 +240,7 @@ const seedPersonal = async () => {
     // ============================================
     // PASO 4: ASIGNAR ROLES A PERSONAS
     // ============================================
-    logger.info('\nAsignando roles a personas...');
+    logger.info('\n🔐 Asignando roles a personas...');
 
     // Supervisor 1 - Rol Supervisor
     await PersonaRol.create({
@@ -269,7 +283,7 @@ const seedPersonal = async () => {
     // ============================================
     // PASO 5: CREAR CUADRILLAS
     // ============================================
-    logger.info('\nCreando cuadrillas...');
+    logger.info('\n👷 Creando cuadrillas...');
 
     const cuadrilla1 = await Cuadrilla.create({
       codigo: 'CUA-001',
@@ -304,7 +318,7 @@ const seedPersonal = async () => {
     // ============================================
     // PASO 6: CREAR ASIGNACIONES DE SUPERVISORES
     // ============================================
-    logger.info('\n Creando asignaciones de supervisores...');
+    logger.info('\n📍 Creando asignaciones de supervisores...');
 
     // Supervisor 1 asignado al núcleo Popayán
     const asigSup1 = await AsignacionSupervisor.create({
@@ -332,36 +346,105 @@ const seedPersonal = async () => {
     logger.success(`Asignación creada: ${supervisor2.nombreCompleto} → Núcleo ${nucleoCali.nombre}`);
 
     // ============================================
+    // PASO 7: CREAR ASIGNACIONES DE TRABAJADORES
+    // ============================================
+    logger.info('\n📋 Creando asignaciones de trabajadores...');
+
+    const asignacionesTrabajador = [];
+    
+    // Solo crear asignaciones si hay ProyectoActividadLote disponibles
+    if (proyectoActividadesLotes.length > 0) {
+      // Asignar trabajadores de la cuadrilla 1 a proyectos
+      for (let i = 0; i < Math.min(5, trabajadores.length); i++) {
+        const trabajador = trabajadores[i];
+        const proyectoActividadLote = proyectoActividadesLotes[i % proyectoActividadesLotes.length];
+
+        const asignacion = await AsignacionTrabajador.create({
+          trabajador: trabajador._id,
+          proyecto_actividad_lote: proyectoActividadLote._id,
+          cuadrilla: cuadrilla1._id,
+          fecha_inicio: new Date('2026-02-01'),
+          horario: {
+            hora_entrada: '07:00',
+            hora_salida: '17:00'
+          },
+          activa: true,
+          observaciones: 'Asignación inicial de trabajador a proyecto'
+        });
+
+        await asignacion.populate(['trabajador', 'proyecto_actividad_lote', 'cuadrilla']);
+        asignacionesTrabajador.push(asignacion);
+        logger.success(`Asignación creada: ${trabajador.nombreCompleto} → Proyecto`);
+      }
+
+      // Asignar trabajadores de la cuadrilla 2 a proyectos
+      for (let i = 5; i < Math.min(10, trabajadores.length); i++) {
+        if (i - 5 < proyectoActividadesLotes.length) {
+          const trabajador = trabajadores[i];
+          const proyectoActividadLote = proyectoActividadesLotes[(i - 5) % proyectoActividadesLotes.length];
+
+          const asignacion = await AsignacionTrabajador.create({
+            trabajador: trabajador._id,
+            proyecto_actividad_lote: proyectoActividadLote._id,
+            cuadrilla: cuadrilla2._id,
+            fecha_inicio: new Date('2026-02-01'),
+            horario: {
+              hora_entrada: '07:00',
+              hora_salida: '17:00'
+            },
+            activa: true,
+            observaciones: 'Asignación inicial de trabajador a proyecto'
+          });
+
+          await asignacion.populate(['trabajador', 'proyecto_actividad_lote', 'cuadrilla']);
+          asignacionesTrabajador.push(asignacion);
+          logger.success(`Asignación creada: ${trabajador.nombreCompleto} → Proyecto`);
+        }
+      }
+    } else {
+      logger.warn('⚠️ No se encontraron ProyectoActividadLote disponibles');
+      logger.warn('⚠️ Ejecute primero el seeder de proyectos para crear asignaciones de trabajadores');
+      logger.info('ℹ️  El seeder continuará sin crear asignaciones de trabajadores');
+    }
+
+    // ============================================
     // RESUMEN
     // ============================================
-    logger.success('\nSeeding de Personal completado exitosamente');
+    logger.success('\n✅ Seeding de Personal completado exitosamente');
     logger.info('\nRESUMEN:');
     logger.info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    logger.info(`Roles creados: ${Object.keys(roles).length}`);
-    logger.info(`Supervisores: 2`);
-    logger.info(`Trabajadores: ${trabajadores.length}`);
-    logger.info(`Jefes: 1`);
-    logger.info(`Total personas: ${2 + trabajadores.length + 1}`);
-    logger.info(`Asignaciones persona-rol: ${trabajadores.length + 3}`);
-    logger.info(`Cuadrillas: 2`);
-    logger.info(`Asignaciones supervisores: 2`);
+    logger.info(`✅ Roles creados: ${Object.keys(roles).length}`);
+    logger.info(`✅ Supervisores: 2`);
+    logger.info(`✅ Trabajadores: ${trabajadores.length}`);
+    logger.info(`✅ Jefes: 1`);
+    logger.info(`✅ Total personas: ${2 + trabajadores.length + 1}`);
+    logger.info(`✅ Asignaciones persona-rol: ${trabajadores.length + 3}`);
+    logger.info(`✅ Cuadrillas: 2`);
+    logger.info(`✅ Asignaciones supervisores: 2`);
+    logger.info(`✅ Asignaciones trabajadores: ${asignacionesTrabajador.length}`);
     logger.info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
-    logger.info(' ESTRUCTURA CREADA:');
+    logger.info('📊 ESTRUCTURA CREADA:');
     logger.info(`   Cuadrilla 1: ${cuadrilla1.nombre}`);
     logger.info(`   - Supervisor: ${supervisor1.nombreCompleto}`);
     logger.info(`   - Núcleo: ${nucleoPopayan.nombre}`);
     logger.info(`   - Miembros: ${cuadrilla1.cantidadMiembros} trabajadores`);
+    if (asignacionesTrabajador.length > 0) {
+      logger.info(`   - Asignaciones activas: ${asignacionesTrabajador.filter(a => trabajadores.slice(0, 5).some(t => t._id.equals(a.trabajador._id))).length}`);
+    }
     logger.info('');
     logger.info(`   Cuadrilla 2: ${cuadrilla2.nombre}`);
     logger.info(`   - Supervisor: ${supervisor2.nombreCompleto}`);
     logger.info(`   - Núcleo: ${nucleoCali.nombre}`);
     logger.info(`   - Miembros: ${cuadrilla2.cantidadMiembros} trabajadores`);
+    if (asignacionesTrabajador.length > 0) {
+      logger.info(`   - Asignaciones activas: ${asignacionesTrabajador.filter(a => trabajadores.slice(5, 10).some(t => t._id.equals(a.trabajador._id))).length}`);
+    }
     logger.info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
     process.exit(0);
   } catch (error) {
-    logger.error('Error en seeding de Personal:', error.message);
+    logger.error('❌ Error en seeding de Personal:', error.message);
     console.error(error);
     process.exit(1);
   }

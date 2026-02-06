@@ -137,6 +137,13 @@ const TIPOS_NOVEDAD = {
   OTRO: 'OTRO'
 };
  
+// Estados de novedad
+const ESTADOS_NOVEDAD = {
+  PENDIENTE: 'PENDIENTE',
+  APROBADA: 'APROBADA',
+  RECHAZADA: 'RECHAZADA',
+  ANULADA: 'ANULADA'
+};
 // Semana operativa (jueves a jueves)
 const SEMANA_OPERATIVA = {
   DIA_INICIO: 4, // Jueves (0=Domingo, 4=Jueves)
