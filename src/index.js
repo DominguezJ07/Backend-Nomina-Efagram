@@ -63,8 +63,6 @@ app.get('/', (req, res) => {
     message: 'API Sistema de Nómina EFAGRAM',
     version: '1.0.0',
     endpoints: {
-      health: '/health',
-      api: '/api/v1'
     }
   });
 });
