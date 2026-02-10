@@ -10,12 +10,19 @@ const {
   createProyecto,
   updateProyecto,
   cerrarProyecto,
-  puedeObtenerProyecto
+  puedeObtenerProyecto,
+  // ===== NUEVAS FUNCIONES DE PRESUPUESTO =====
+  actualizarPresupuestoAnual,
+  obtenerPresupuestoAnual,
+  obtenerResumenPresupuestos
 } = require('../controllers/proyecto.controller');
 
 const router = express.Router();
 
-// Validaciones
+// ====================================================================
+// VALIDACIONES EXISTENTES
+// ====================================================================
+
 const proyectoValidation = [
   body('codigo')
     .notEmpty()
@@ -57,16 +64,119 @@ const proyectoValidation = [
   validateRequest
 ];
 
-// Todas las rutas requieren autenticación
+// ====================================================================
+// NUEVAS VALIDACIONES PARA PRESUPUESTO ANUAL
+// ====================================================================
+
+const presupuestoAnualValidation = [
+  body('cantidad_actividades_planeadas')
+    .notEmpty()
+    .withMessage('La cantidad de actividades planeadas es obligatoria')
+    .isInt({ min: 0 })
+    .withMessage('La cantidad debe ser un número entero positivo'),
+  
+  body('monto_presupuestado')
+    .notEmpty()
+    .withMessage('El monto presupuestado es obligatorio')
+    .isFloat({ min: 0 })
+    .withMessage('El monto debe ser un número positivo'),
+  
+  body('año_fiscal')
+    .notEmpty()
+    .withMessage('El año fiscal es obligatorio')
+    .isInt({ min: 2020, max: 2100 })
+    .withMessage('El año fiscal debe estar entre 2020 y 2100'),
+  
+  body('observaciones_presupuesto')
+    .optional()
+    .trim()
+    .isLength({ max: 500 })
+    .withMessage('Las observaciones no pueden exceder 500 caracteres'),
+  
+  // Validaciones para desglose por intervención (opcional)
+  body('presupuesto_por_intervencion.mantenimiento.cantidad_actividades')
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage('La cantidad de actividades de mantenimiento debe ser positiva'),
+  
+  body('presupuesto_por_intervencion.mantenimiento.monto_presupuestado')
+    .optional()
+    .isFloat({ min: 0 })
+    .withMessage('El monto de mantenimiento debe ser positivo'),
+  
+  body('presupuesto_por_intervencion.no_programadas.cantidad_actividades')
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage('La cantidad de actividades no programadas debe ser positiva'),
+  
+  body('presupuesto_por_intervencion.no_programadas.monto_presupuestado')
+    .optional()
+    .isFloat({ min: 0 })
+    .withMessage('El monto de no programadas debe ser positivo'),
+  
+  body('presupuesto_por_intervencion.establecimiento.cantidad_actividades')
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage('La cantidad de actividades de establecimiento debe ser positiva'),
+  
+  body('presupuesto_por_intervencion.establecimiento.monto_presupuestado')
+    .optional()
+    .isFloat({ min: 0 })
+    .withMessage('El monto de establecimiento debe ser positivo'),
+  
+  validateRequest
+];
+
+// ====================================================================
+// TODAS LAS RUTAS REQUIEREN AUTENTICACIÓN
+// ====================================================================
+
 router.use(authenticate);
 
-// Rutas de consulta
+// ====================================================================
+// RUTAS DE PRESUPUESTO ANUAL (DEBEN IR ANTES DE LAS RUTAS CON :id)
+// ====================================================================
+
+// Obtener resumen de presupuestos de todos los proyectos
+router.get(
+  '/presupuestos/resumen',
+  authorize(ROLES.ADMIN_SISTEMA, ROLES.JEFE_OPERACIONES),
+  obtenerResumenPresupuestos
+);
+
+// ====================================================================
+// RUTAS DE CONSULTA EXISTENTES
+// ====================================================================
+
 router.get('/', getProyectos);
 router.get('/:id', validateMongoId('id'), getProyecto);
 router.get('/:id/resumen', validateMongoId('id'), getResumenProyecto);
 router.get('/:id/puede-cerrar', validateMongoId('id'), puedeObtenerProyecto);
 
-// Rutas de modificación
+// ====================================================================
+// RUTAS DE PRESUPUESTO ANUAL ESPECÍFICAS DE UN PROYECTO
+// ====================================================================
+
+// Actualizar presupuesto anual de un proyecto específico (solo admin)
+router.put(
+  '/:id/presupuesto-anual',
+  authorize(ROLES.ADMIN_SISTEMA),
+  validateMongoId('id'),
+  presupuestoAnualValidation,
+  actualizarPresupuestoAnual
+);
+
+// Obtener presupuesto anual con métricas de un proyecto
+router.get(
+  '/:id/presupuesto-anual',
+  validateMongoId('id'),
+  obtenerPresupuestoAnual
+);
+
+// ====================================================================
+// RUTAS DE MODIFICACIÓN EXISTENTES
+// ====================================================================
+
 router.post(
   '/',
   authorize(ROLES.ADMIN_SISTEMA, ROLES.JEFE_OPERACIONES),
@@ -89,4 +199,4 @@ router.post(
   cerrarProyecto
 );
 
-module.exports = router;    
+module.exports = router;
