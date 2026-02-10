@@ -53,17 +53,13 @@ app.get('/health', (req, res) => {
   res.status(200).json({
     success: true,
     message: 'Servidor funcionando correctamente'
-    
   });
 });
 
 app.get('/', (req, res) => {
   res.status(200).json({
     success: true,
-    message: 'API Sistema de Nómina EFAGRAM',
-    version: '1.0.0',
-    endpoints: {
-    }
+    message: 'API Online'
   });
 });
 
@@ -127,7 +123,7 @@ apiRouter.use('/personas', personaRoutes);
 apiRouter.use('/roles', rolRoutes);
 apiRouter.use('/persona-roles', personaRolRoutes);
 apiRouter.use('/cuadrillas', cuadrillaRoutes);
-apiRouter.use('/asignaciones-supervisor', asignacionRoutes); // ✅ CORREGIDO AQUÍ
+apiRouter.use('/asignaciones-supervisor', asignacionRoutes);
 
 // Montar rutas de Proyectos
 apiRouter.use('/clientes', clienteRoutes);
