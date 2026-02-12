@@ -9,6 +9,7 @@ const {
   getResumenProyecto,
   createProyecto,
   updateProyecto,
+  deleteProyecto, // ⬅️ IMPORTAR LA NUEVA FUNCIÓN
   cerrarProyecto,
   puedeObtenerProyecto,
   // ===== NUEVAS FUNCIONES DE PRESUPUESTO =====
@@ -190,6 +191,14 @@ router.put(
   validateMongoId('id'),
   proyectoValidation,
   updateProyecto
+);
+
+// ⬇️ NUEVA RUTA DE ELIMINACIÓN (Solo Admin)
+router.delete(
+  '/:id',
+  authorize(ROLES.ADMIN_SISTEMA),
+  validateMongoId('id'),
+  deleteProyecto
 );
 
 router.post(

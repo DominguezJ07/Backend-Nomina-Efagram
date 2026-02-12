@@ -110,6 +110,38 @@ const updateProyecto = asyncHandler(async (req, res) => {
 });
 
 /**
+ * @desc    Eliminar un proyecto
+ * @route   DELETE /api/v1/proyectos/:id
+ * @access  Private (Solo Admin)
+ */
+const deleteProyecto = asyncHandler(async (req, res) => {
+  const proyecto = await Proyecto.findById(req.params.id);
+  
+  if (!proyecto) {
+    throw new ApiError(404, 'Proyecto no encontrado');
+  }
+  
+  // Validar que el proyecto no tenga actividades asociadas
+  const PAL = require('../models/proyectoActividadLote.model');
+  const tieneActividades = await PAL.countDocuments({ proyecto: req.params.id });
+  
+  if (tieneActividades > 0) {
+    throw new ApiError(
+      400, 
+      `No se puede eliminar el proyecto. Tiene ${tieneActividades} actividades asociadas.`
+    );
+  }
+  
+  await proyecto.deleteOne();
+  
+  res.status(200).json({
+    success: true,
+    message: 'Proyecto eliminado exitosamente',
+    data: {}
+  });
+});
+
+/**
  * @desc    Cerrar un proyecto
  * @route   POST /api/v1/proyectos/:id/cerrar
  * @access  Private (Admin, Jefe)
@@ -412,6 +444,7 @@ module.exports = {
   getResumenProyecto,
   createProyecto,
   updateProyecto,
+  deleteProyecto, // ⬅️ NUEVA FUNCIÓN
   cerrarProyecto,
   puedeObtenerProyecto,
   // Nuevas funciones de presupuesto
