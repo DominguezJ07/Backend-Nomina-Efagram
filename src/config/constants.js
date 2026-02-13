@@ -101,7 +101,9 @@ const UNIDADES_MEDIDA = {
 const TIPOS_CONTRATO = {
   FIJO_TODO_COSTO: 'FIJO_TODO_COSTO',
   VARIABLE: 'VARIABLE',
-  OTRO: 'OTRO'
+  ADMINISTRACION: 'ADMINISTRACION',
+  OTRO: 'OTRO',
+  CONTRATO_ESPECIAL: 'CONTRATO_ESPECIAL'
 };
  
 // Roles del sistema
@@ -149,6 +151,8 @@ const SEMANA_OPERATIVA = {
   DIA_INICIO: 4, // Jueves (0=Domingo, 4=Jueves)
   DIA_CIERRE: 4  // Jueves
 };
+
+
  
 // Límites y validaciones
 const LIMITES = {
