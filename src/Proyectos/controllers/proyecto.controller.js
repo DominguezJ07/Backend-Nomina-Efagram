@@ -75,10 +75,76 @@ const getResumenProyecto = asyncHandler(async (req, res) => {
  * @access  Private (Admin, Jefe)
  */
 const createProyecto = asyncHandler(async (req, res) => {
-  const proyecto = await Proyecto.create(req.body);
-  
+  const {
+    codigo,
+    nombre,
+    cliente,
+    responsable,
+    fecha_inicio,
+    fecha_fin_estimada,
+    tipo_contrato,
+    descripcion,
+    avance,
+    actividades_por_intervencion
+  } = req.body;
+
+  // =========================
+  // VALIDACIONES FUERTES
+  // =========================
+  if (!codigo || !codigo.trim()) {
+    throw new ApiError(400, 'El código es obligatorio');
+  }
+
+  if (!nombre || !nombre.trim()) {
+    throw new ApiError(400, 'El nombre es obligatorio');
+  }
+
+  if (!cliente || !mongoose.Types.ObjectId.isValid(cliente)) {
+    throw new ApiError(400, 'El cliente es inválido');
+  }
+
+  if (!fecha_inicio) {
+    throw new ApiError(400, 'La fecha de inicio es obligatoria');
+  }
+
+  // =========================
+  // Normalizar actividades
+  // =========================
+  const actividadesNormalizadas = {
+    mantenimiento: actividades_por_intervencion?.mantenimiento || [],
+    no_programadas: actividades_por_intervencion?.no_programadas || [],
+    establecimiento: actividades_por_intervencion?.establecimiento || [],
+  };
+
+  // Validar estructura de actividades
+  Object.keys(actividadesNormalizadas).forEach((tipo) => {
+    actividadesNormalizadas[tipo] = actividadesNormalizadas[tipo].map((act) => ({
+      nombre: act.nombre?.trim() || '',
+      precio_unitario: Number(act.precio_unitario) || 0,
+      cantidad: Number(act.cantidad) || 0,
+      unidad: act.unidad || 'hectareas',
+      estado: act.estado || 'Pendiente',
+    }));
+  });
+
+  // =========================
+  // Crear proyecto
+  // =========================
+  const proyecto = await Proyecto.create({
+    codigo: codigo.trim().toUpperCase(),
+    nombre: nombre.trim(),
+    cliente,
+    responsable: responsable || null,
+    fecha_inicio,
+    fecha_fin_estimada: fecha_fin_estimada || null,
+    tipo_contrato,
+    descripcion,
+    avance: Number(avance) || 0,
+    actividades_por_intervencion: actividadesNormalizadas,
+  });
+
   await proyecto.populate(['cliente', 'responsable']);
-  
+
   res.status(201).json({
     success: true,
     message: 'Proyecto creado exitosamente',
@@ -86,28 +152,41 @@ const createProyecto = asyncHandler(async (req, res) => {
   });
 });
 
+
 /**
  * @desc    Actualizar un proyecto
  * @route   PUT /api/v1/proyectos/:id
  * @access  Private (Admin, Jefe)
  */
 const updateProyecto = asyncHandler(async (req, res) => {
-  const proyecto = await Proyecto.findByIdAndUpdate(
-    req.params.id,
-    req.body,
-    { new: true, runValidators: true }
-  ).populate(['cliente', 'responsable']);
-  
+  const proyecto = await Proyecto.findById(req.params.id);
+
   if (!proyecto) {
     throw new ApiError(404, 'Proyecto no encontrado');
   }
-  
+
+  // Actualizar campos simples
+  Object.assign(proyecto, req.body);
+
+  // Si vienen actividades nuevas
+  if (req.body.actividades_por_intervencion) {
+    proyecto.actividades_por_intervencion = {
+      mantenimiento: req.body.actividades_por_intervencion.mantenimiento || [],
+      no_programadas: req.body.actividades_por_intervencion.no_programadas || [],
+      establecimiento: req.body.actividades_por_intervencion.establecimiento || [],
+    };
+  }
+
+  await proyecto.save();
+  await proyecto.populate(['cliente', 'responsable']);
+
   res.status(200).json({
     success: true,
     message: 'Proyecto actualizado exitosamente',
     data: proyecto
   });
 });
+
 
 /**
  * @desc    Eliminar un proyecto
