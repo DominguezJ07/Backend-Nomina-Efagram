@@ -20,8 +20,8 @@ const createZonaValidation = [
   body('codigo')
     .notEmpty()
     .withMessage('El código es obligatorio')
-    .matches(/^ZONA-\d{2}$/)
-    .withMessage('El código debe tener el formato ZONA-XX (ej: ZONA-01, ZONA-04)'),
+    .isInt({ min: 1, max: 99 })
+    .withMessage('El código debe ser un número entre 1 y 99 (ej: 1, 05, 23, 99)'),
   body('nombre')
     .notEmpty()
     .withMessage('El nombre es obligatorio')
@@ -38,12 +38,8 @@ const createZonaValidation = [
 const updateZonaValidation = [
   body('codigo')
     .optional()
-    .custom((value) => {
-      if (value && !value.match(/^ZONA-\d{2}$/)) {
-        throw new Error('El código debe tener el formato ZONA-XX');
-      }
-      return true;
-    }),
+    .isInt({ min: 1, max: 99 })
+    .withMessage('El código debe ser un número entre 1 y 99'),
   body('nombre')
     .optional()
     .isString()

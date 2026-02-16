@@ -87,9 +87,9 @@ const updateZona = asyncHandler(async (req, res) => {
   }
 
   // Verificar si el código está cambiando y si ya existe
-  if (req.body.codigo && req.body.codigo.toUpperCase() !== zona.codigo) {
+  if (req.body.codigo && Number(req.body.codigo) !== zona.codigo) {
     const existeCodigo = await Zona.findOne({ 
-      codigo: req.body.codigo.toUpperCase(),
+      codigo: Number(req.body.codigo),
       _id: { $ne: req.params.id }
     });
     
