@@ -20,7 +20,15 @@ const actividadCatalogoSchema = new mongoose.Schema({
   },
   categoria: {
     type: String,
-    enum: ['PREPARACION_TERRENO', 'SIEMBRA', 'MANTENIMIENTO', 'CONTROL_MALEZA', 'FERTILIZACION', 'PODAS', 'OTRO'],
+    enum: [
+      'PREPARACION_TERRENO',
+      'SIEMBRA',
+      'MANTENIMIENTO',
+      'CONTROL_MALEZA',
+      'FERTILIZACION',
+      'PODAS',
+      'OTRO'
+    ],
     default: 'OTRO'
   },
   unidad_medida: {
@@ -28,11 +36,9 @@ const actividadCatalogoSchema = new mongoose.Schema({
     enum: Object.values(UNIDADES_MEDIDA),
     required: [true, 'La unidad de medida es obligatoria']
   },
-  // Rendimientos estimados
   rendimiento_diario_estimado: {
     type: Number,
-    min: 0,
-    comment: 'Cantidad estimada que un trabajador puede realizar en un día'
+    min: 0
   },
   activa: {
     type: Boolean,
@@ -47,11 +53,9 @@ const actividadCatalogoSchema = new mongoose.Schema({
   versionKey: false
 });
 
-// Índices
-actividadCatalogoSchema.index({ codigo: 1 });
-actividadCatalogoSchema.index({ categoria: 1 });
-actividadCatalogoSchema.index({ activa: 1 });
+// 🔥 Índices optimizados
+actividadCatalogoSchema.index({ codigo: 1 }, { unique: true });
+actividadCatalogoSchema.index({ activa: 1, categoria: 1 });
+actividadCatalogoSchema.index({ nombre: "text", codigo: "text" });
 
-const ActividadCatalogo = mongoose.model('ActividadCatalogo', actividadCatalogoSchema);
-
-module.exports = ActividadCatalogo;
+module.exports = mongoose.model('ActividadCatalogo', actividadCatalogoSchema);

@@ -13,58 +13,141 @@ const {
 
 const router = express.Router();
 
-// Validaciones
-const actividadValidation = [
+/* =====================================================
+   🔹 VALIDACIÓN PARA CREAR ACTIVIDAD
+===================================================== */
+const actividadCreateValidation = [
   body('codigo')
     .notEmpty()
     .withMessage('El código es obligatorio')
     .trim()
     .toUpperCase(),
+
   body('nombre')
     .notEmpty()
     .withMessage('El nombre es obligatorio')
     .trim()
     .isLength({ min: 3, max: 200 })
     .withMessage('El nombre debe tener entre 3 y 200 caracteres'),
+
   body('categoria')
     .optional()
-    .isIn(['PREPARACION_TERRENO', 'SIEMBRA', 'MANTENIMIENTO', 'CONTROL_MALEZA', 'FERTILIZACION', 'PODAS', 'OTRO'])
+    .isIn([
+      'PREPARACION_TERRENO',
+      'SIEMBRA',
+      'MANTENIMIENTO',
+      'CONTROL_MALEZA',
+      'FERTILIZACION',
+      'PODAS',
+      'OTRO'
+    ])
     .withMessage('Categoría inválida'),
+
   body('unidad_medida')
     .notEmpty()
     .withMessage('La unidad de medida es obligatoria')
     .isIn(Object.values(UNIDADES_MEDIDA))
     .withMessage('Unidad de medida inválida'),
+
   body('rendimiento_diario_estimado')
     .optional()
     .isFloat({ min: 0 })
     .withMessage('El rendimiento debe ser un número positivo'),
+
+  body('descripcion')
+    .optional()
+    .trim(),
+
+  body('observaciones')
+    .optional()
+    .trim(),
+
   validateRequest
 ];
 
-// Todas las rutas requieren autenticación
+/* =====================================================
+   🔹 VALIDACIÓN PARA ACTUALIZAR ACTIVIDAD
+   (NO se permite modificar código)
+===================================================== */
+const actividadUpdateValidation = [
+  body('codigo')
+    .not()
+    .exists()
+    .withMessage('El código no puede modificarse'),
+
+  body('nombre')
+    .optional()
+    .trim()
+    .isLength({ min: 3, max: 200 })
+    .withMessage('El nombre debe tener entre 3 y 200 caracteres'),
+
+  body('categoria')
+    .optional()
+    .isIn([
+      'PREPARACION_TERRENO',
+      'SIEMBRA',
+      'MANTENIMIENTO',
+      'CONTROL_MALEZA',
+      'FERTILIZACION',
+      'PODAS',
+      'OTRO'
+    ])
+    .withMessage('Categoría inválida'),
+
+  body('unidad_medida')
+    .optional()
+    .isIn(Object.values(UNIDADES_MEDIDA))
+    .withMessage('Unidad de medida inválida'),
+
+  body('rendimiento_diario_estimado')
+    .optional()
+    .isFloat({ min: 0 })
+    .withMessage('El rendimiento debe ser un número positivo'),
+
+  body('descripcion')
+    .optional()
+    .trim(),
+
+  body('observaciones')
+    .optional()
+    .trim(),
+
+  validateRequest
+];
+
+/* =====================================================
+   🔹 AUTENTICACIÓN GLOBAL
+===================================================== */
 router.use(authenticate);
 
-// Rutas de consulta
+/* =====================================================
+   🔹 RUTAS DE CONSULTA
+===================================================== */
 router.get('/', getActividades);
 router.get('/:id', validateMongoId('id'), getActividad);
 
-// Rutas de modificación
+/* =====================================================
+   🔹 RUTAS DE MODIFICACIÓN
+===================================================== */
+
+// Crear actividad
 router.post(
   '/',
   authorize(ROLES.ADMIN_SISTEMA, ROLES.JEFE_OPERACIONES),
-  actividadValidation,
+  actividadCreateValidation,
   createActividad
 );
 
+// Actualizar actividad
 router.put(
   '/:id',
   authorize(ROLES.ADMIN_SISTEMA, ROLES.JEFE_OPERACIONES),
   validateMongoId('id'),
-  actividadValidation,
+  actividadUpdateValidation,
   updateActividad
 );
 
+// Desactivar actividad (soft delete)
 router.delete(
   '/:id',
   authorize(ROLES.ADMIN_SISTEMA),
