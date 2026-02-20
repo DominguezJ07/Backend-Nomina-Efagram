@@ -12,15 +12,10 @@ const { asyncHandler, ApiError } = require('../../middlewares/errorHandler');
 const getRegistros = asyncHandler(async (req, res) => {
   const { trabajador, pal, fecha_inicio, fecha_fin, estado } = req.query;
 
-  console.log('Query params:', req.query);
-  console.log('Trabajador:', trabajador);
-
   const filter = {};
   if (trabajador) filter.trabajador = trabajador;
   if (pal) filter.proyecto_actividad_lote = pal;
   if (estado) filter.estado = estado;
-
-  console.log('Filter:', filter);
 
   if (fecha_inicio && fecha_fin) {
     filter.fecha = {
@@ -36,8 +31,6 @@ const getRegistros = asyncHandler(async (req, res) => {
     .populate('registrado_por')
     .sort({ fecha: -1 });
 
-  console.log('Registros encontrados:', registros.length);
-
   res.status(200).json({
     success: true,
     count: registros.length,
@@ -46,15 +39,29 @@ const getRegistros = asyncHandler(async (req, res) => {
 });
 
 /**
- * @desc    Obtener un registro diario por ID
+ * @desc    Obtener un registro diario por ID (con datos completos para vista detalle)
  * @route   GET /api/v1/registros-diarios/:id
  * @access  Private
  */
 const getRegistro = asyncHandler(async (req, res) => {
   const registro = await RegistroDiario.findById(req.params.id)
     .populate('trabajador')
-    .populate('proyecto_actividad_lote')
-    .populate('cuadrilla')
+    // PAL con actividad y lote populados
+    .populate({
+      path: 'proyecto_actividad_lote',
+      populate: [
+        { path: 'actividad' },
+        { path: 'lote' }
+      ]
+    })
+    // Cuadrilla con supervisor y cada miembro (persona) populado
+    .populate({
+      path: 'cuadrilla',
+      populate: [
+        { path: 'supervisor' },
+        { path: 'miembros.persona' }
+      ]
+    })
     .populate('registrado_por')
     .populate('editado_por');
 
@@ -74,7 +81,19 @@ const getRegistro = asyncHandler(async (req, res) => {
  * @access  Private (Admin, Jefe, Supervisor)
  */
 const createRegistro = asyncHandler(async (req, res) => {
-  const { fecha, trabajador, proyecto_actividad_lote, cuadrilla, cantidad_ejecutada, horas_trabajadas, hora_inicio, hora_fin, observaciones, registrado_por, estado } = req.body;
+  const {
+    fecha,
+    trabajador,
+    proyecto_actividad_lote,
+    cuadrilla,
+    cantidad_ejecutada,
+    horas_trabajadas,
+    hora_inicio,
+    hora_fin,
+    observaciones,
+    registrado_por,
+    estado
+  } = req.body;
 
   // Obtener persona del usuario autenticado (OPCIONAL)
   const persona = await Persona.findOne({ usuario: req.user.id });
@@ -82,18 +101,16 @@ const createRegistro = asyncHandler(async (req, res) => {
 
   // Verificar acceso del supervisor (si es supervisor)
   if (req.user.roles.includes('SUPERVISOR') && persona) {
-    const tieneAcceso = await registroDiarioService.verificarAccesoSupervisor(
+    await registroDiarioService.verificarAccesoSupervisor(
       persona._id,
       proyecto_actividad_lote
     );
-
-    if (!tieneAcceso) {
-      throw new ApiError(403, 'No tiene acceso a este PAL');
-    }
   }
 
-  // Validar que no exista registro duplicado
-  await registroDiarioService.validarRegistroUnico(fecha, trabajador, proyecto_actividad_lote);
+  // Validar duplicado solo cuando hay trabajador explícito
+  if (trabajador) {
+    await registroDiarioService.validarRegistroUnico(fecha, trabajador, proyecto_actividad_lote);
+  }
 
   // Generar código
   const count = await RegistroDiario.countDocuments();
@@ -103,7 +120,7 @@ const createRegistro = asyncHandler(async (req, res) => {
   const registro = await RegistroDiario.create({
     codigo,
     fecha,
-    trabajador,
+    trabajador: trabajador || null,
     proyecto_actividad_lote,
     cuadrilla,
     cantidad_ejecutada,
@@ -118,11 +135,12 @@ const createRegistro = asyncHandler(async (req, res) => {
   // Actualizar cantidad ejecutada del PAL
   await registroDiarioService.actualizarCantidadPAL(proyecto_actividad_lote);
 
-  // Obtener o crear semana operativa
-  //const semanaService = require('../services/semana.service');
-  //await semanaService.getOrCreateSemana(new Date(fecha), proyecto_actividad_lote);
-
-  await registro.populate(['trabajador', 'proyecto_actividad_lote', 'cuadrilla', 'registrado_por']);
+  await registro.populate([
+    'trabajador',
+    'proyecto_actividad_lote',
+    { path: 'cuadrilla', populate: [{ path: 'supervisor' }, { path: 'miembros.persona' }] },
+    'registrado_por'
+  ]);
 
   res.status(201).json({
     success: true,
@@ -145,39 +163,51 @@ const updateRegistro = asyncHandler(async (req, res) => {
 
   // Obtener persona (OPCIONAL)
   const persona = await Persona.findOne({ usuario: req.user.id });
-  
+
   // Verificar permisos de edición
   if (persona) {
     const resultado = registroDiarioService.puedeEditar(registro, req.user.roles);
-
     if (!resultado.puede) {
       throw new ApiError(403, resultado.motivo);
     }
   }
 
-  const { cantidad_ejecutada, horas_trabajadas, hora_inicio, hora_fin, observaciones, motivo_edicion } = req.body;
+  const {
+    cantidad_ejecutada,
+    horas_trabajadas,
+    hora_inicio,
+    hora_fin,
+    observaciones,
+    motivo_edicion,
+    estado
+  } = req.body;
 
-  // Actualizar campos
   if (cantidad_ejecutada !== undefined) registro.cantidad_ejecutada = cantidad_ejecutada;
-  if (horas_trabajadas !== undefined) registro.horas_trabajadas = horas_trabajadas;
-  if (hora_inicio !== undefined) registro.hora_inicio = hora_inicio;
-  if (hora_fin !== undefined) registro.hora_fin = hora_fin;
-  if (observaciones !== undefined) registro.observaciones = observaciones;
+  if (horas_trabajadas !== undefined)   registro.horas_trabajadas = horas_trabajadas;
+  if (hora_inicio !== undefined)        registro.hora_inicio = hora_inicio;
+  if (hora_fin !== undefined)           registro.hora_fin = hora_fin;
+  if (observaciones !== undefined)      registro.observaciones = observaciones;
+  if (estado !== undefined)             registro.estado = estado;
 
   // Marcar como editado
-  if (persona && motivo_edicion) {
+  if (motivo_edicion) {
     registro.editado = true;
     registro.fecha_edicion = new Date();
-    registro.editado_por = persona._id;
+    registro.editado_por = persona ? persona._id : null;
     registro.motivo_edicion = motivo_edicion;
   }
 
   await registro.save();
 
-  // Actualizar cantidad del PAL
   await registroDiarioService.actualizarCantidadPAL(registro.proyecto_actividad_lote);
 
-  await registro.populate(['trabajador', 'proyecto_actividad_lote', 'cuadrilla', 'registrado_por', 'editado_por']);
+  await registro.populate([
+    'trabajador',
+    'proyecto_actividad_lote',
+    { path: 'cuadrilla', populate: [{ path: 'supervisor' }, { path: 'miembros.persona' }] },
+    'registrado_por',
+    'editado_por'
+  ]);
 
   res.status(200).json({
     success: true,
@@ -193,11 +223,8 @@ const updateRegistro = asyncHandler(async (req, res) => {
  */
 const deleteRegistro = asyncHandler(async (req, res) => {
   const registro = await registroDiarioService.validateRegistroExists(req.params.id);
-
   const palId = registro.proyecto_actividad_lote;
   await registro.deleteOne();
-
-  // Actualizar cantidad del PAL
   await registroDiarioService.actualizarCantidadPAL(palId);
 
   res.status(200).json({
