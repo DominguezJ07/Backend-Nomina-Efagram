@@ -74,7 +74,7 @@ const getRegistro = asyncHandler(async (req, res) => {
  * @access  Private (Admin, Jefe, Supervisor)
  */
 const createRegistro = asyncHandler(async (req, res) => {
-  const { fecha, trabajador, proyecto_actividad_lote, cuadrilla, cantidad_ejecutada, horas_trabajadas, hora_inicio, hora_fin, observaciones, registrado_por } = req.body;
+  const { fecha, trabajador, proyecto_actividad_lote, cuadrilla, cantidad_ejecutada, horas_trabajadas, hora_inicio, hora_fin, observaciones, registrado_por, estado } = req.body;
 
   // Obtener persona del usuario autenticado (OPCIONAL)
   const persona = await Persona.findOne({ usuario: req.user.id });
@@ -111,6 +111,7 @@ const createRegistro = asyncHandler(async (req, res) => {
     hora_inicio,
     hora_fin,
     registrado_por: registradoPorId,
+    estado,
     observaciones
   });
 
