@@ -21,14 +21,16 @@ const registroDiarioSchema = new mongoose.Schema({
   trabajador: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Persona',
-    required: [true, 'El trabajador es obligatorio']
+    required: false,
+    default: null
   },
   
   // PAL (Proyecto-Actividad-Lote)
   proyecto_actividad_lote: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'ProyectoActividadLote',
-    required: [true, 'El PAL es obligatorio']
+    required: false,
+    default: null
   },
   
   // Cuadrilla (opcional)
@@ -105,15 +107,24 @@ const registroDiarioSchema = new mongoose.Schema({
   versionKey: false
 });
 
-// Índices compuestos
-registroDiarioSchema.index({ fecha: 1, trabajador: 1, proyecto_actividad_lote: 1 }, { unique: true });
+// Índices compuestos - solo aplica unique cuando trabajador NO es null
+registroDiarioSchema.index(
+  { fecha: 1, trabajador: 1, proyecto_actividad_lote: 1 },
+  { 
+    unique: true,
+    partialFilterExpression: { 
+      trabajador: { $type: 'objectId' },
+      proyecto_actividad_lote: { $type: 'objectId' }
+    }
+  }
+);
 registroDiarioSchema.index({ trabajador: 1, fecha: -1 });
 registroDiarioSchema.index({ proyecto_actividad_lote: 1, fecha: -1 });
 registroDiarioSchema.index({ registrado_por: 1, fecha: -1 });
 
-// REGLA: Un trabajador solo puede tener UN registro por día por PAL
+// REGLA: Un trabajador solo puede tener UN registro por día por PAL (solo si ambos existen)
 registroDiarioSchema.pre('save', async function() {
-  if (this.isNew) {
+  if (this.isNew && this.trabajador && this.proyecto_actividad_lote) {
     const existente = await this.constructor.findOne({
       fecha: this.fecha,
       trabajador: this.trabajador,

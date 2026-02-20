@@ -23,13 +23,11 @@ const registroValidation = [
     .isISO8601()
     .withMessage('Fecha inválida'),
   body('trabajador')
-    .notEmpty()
-    .withMessage('El trabajador es obligatorio')
+    .optional({ nullable: true })
     .isMongoId()
     .withMessage('ID de trabajador inválido'),
   body('proyecto_actividad_lote')
-    .notEmpty()
-    .withMessage('El PAL es obligatorio')
+    .optional({ nullable: true })
     .isMongoId()
     .withMessage('ID de PAL inválido'),
   body('cantidad_ejecutada')
