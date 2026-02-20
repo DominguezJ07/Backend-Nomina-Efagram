@@ -74,11 +74,11 @@ const getRegistro = asyncHandler(async (req, res) => {
  * @access  Private (Admin, Jefe, Supervisor)
  */
 const createRegistro = asyncHandler(async (req, res) => {
-  const { fecha, trabajador, proyecto_actividad_lote, cuadrilla, cantidad_ejecutada, horas_trabajadas, hora_inicio, hora_fin, observaciones } = req.body;
+  const { fecha, trabajador, proyecto_actividad_lote, cuadrilla, cantidad_ejecutada, horas_trabajadas, hora_inicio, hora_fin, observaciones, registrado_por } = req.body;
 
   // Obtener persona del usuario autenticado (OPCIONAL)
   const persona = await Persona.findOne({ usuario: req.user.id });
-  const registradoPorId = persona ? persona._id : null;
+  const registradoPorId = persona ? persona._id : (registrado_por || null);
 
   // Verificar acceso del supervisor (si es supervisor)
   if (req.user.roles.includes('SUPERVISOR') && persona) {
