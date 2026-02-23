@@ -67,16 +67,22 @@ const actividadCreateValidation = [
 
 /* =====================================================
    🔹 VALIDACIÓN PARA ACTUALIZAR ACTIVIDAD
-   (NO se permite modificar código)
+   FIX: Se eliminó body('codigo').not().exists() que
+   bloqueaba cualquier PUT que incluyera el campo codigo,
+   causando un error 400 de validación al editar.
+   Ahora codigo es opcional — si viene en el body el
+   controller ya maneja la lógica de duplicados.
 ===================================================== */
 const actividadUpdateValidation = [
+  // FIX: antes era .not().exists() → rechazaba TODA edición que mandara codigo
+  // Ahora es opcional para no bloquear el formulario
   body('codigo')
-    .not()
-    .exists()
-    .withMessage('El código no puede modificarse'),
+    .optional({ values: 'falsy' })
+    .trim()
+    .toUpperCase(),
 
   body('nombre')
-    .optional()
+    .optional({ values: 'falsy' })
     .trim()
     .isLength({ min: 3, max: 200 })
     .withMessage('El nombre debe tener entre 3 y 200 caracteres'),
