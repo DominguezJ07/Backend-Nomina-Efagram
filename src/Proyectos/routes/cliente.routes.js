@@ -13,7 +13,7 @@ const {
 
 const router = express.Router();
 
-// ── Validaciones para CREAR (todos los campos requeridos) ─────────────────────
+// ── Validaciones para CREAR ───────────────────────────────
 const clienteCreateValidation = [
   body('codigo')
     .notEmpty()
@@ -30,7 +30,6 @@ const clienteCreateValidation = [
     .trim()
     .isLength({ min: 3, max: 200 })
     .withMessage('La razón social debe tener entre 3 y 200 caracteres'),
-  // FIX: optional({ values: 'falsy' }) para ignorar strings vacíos ""
   body('email')
     .optional({ values: 'falsy' })
     .isEmail()
@@ -42,9 +41,7 @@ const clienteCreateValidation = [
   validateRequest
 ];
 
-// ── Validaciones para EDITAR (todos los campos opcionales) ────────────────────
-// FIX PRINCIPAL: En PUT, ningún campo debe ser obligatorio.
-// Además, email usa optional({ values: 'falsy' }) para ignorar strings vacíos.
+// ── Validaciones para EDITAR ──────────────────────────────
 const clienteUpdateValidation = [
   body('codigo')
     .optional({ values: 'falsy' })
@@ -62,7 +59,6 @@ const clienteUpdateValidation = [
     .trim()
     .isLength({ min: 3, max: 200 })
     .withMessage('La razón social debe tener entre 3 y 200 caracteres'),
-  // FIX: optional({ values: 'falsy' }) ignora "" y null, solo valida si hay valor real
   body('email')
     .optional({ values: 'falsy' })
     .isEmail()
@@ -77,11 +73,11 @@ const clienteUpdateValidation = [
 // Todas las rutas requieren autenticación
 router.use(authenticate);
 
-// Rutas de consulta (todos los roles autenticados)
+// ── Consulta (todos los roles autenticados) ───────────────
 router.get('/', getClientes);
 router.get('/:id', validateMongoId('id'), getCliente);
 
-// Rutas de modificación (solo Admin y Jefe)
+// ── Crear (Admin y Jefe) ──────────────────────────────────
 router.post(
   '/',
   authorize(ROLES.ADMIN_SISTEMA, ROLES.JEFE_OPERACIONES),
@@ -89,17 +85,19 @@ router.post(
   createCliente
 );
 
+// ── Editar (Admin y Jefe) ─────────────────────────────────
 router.put(
   '/:id',
   authorize(ROLES.ADMIN_SISTEMA, ROLES.JEFE_OPERACIONES),
   validateMongoId('id'),
-  clienteUpdateValidation,  // FIX: ahora usa las validaciones de actualización
+  clienteUpdateValidation,
   updateCliente
 );
 
+// ── Desactivar (Admin y Jefe) — FIX: se agrega JEFE_OPERACIONES ──
 router.delete(
   '/:id',
-  authorize(ROLES.ADMIN_SISTEMA),
+  authorize(ROLES.ADMIN_SISTEMA, ROLES.JEFE_OPERACIONES),
   validateMongoId('id'),
   deleteCliente
 );
