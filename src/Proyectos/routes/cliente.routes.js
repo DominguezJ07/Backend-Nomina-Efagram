@@ -13,8 +13,8 @@ const {
 
 const router = express.Router();
 
-// Validaciones
-const clienteValidation = [
+// ── Validaciones para CREAR (todos los campos requeridos) ─────────────────────
+const clienteCreateValidation = [
   body('codigo')
     .notEmpty()
     .withMessage('El código es obligatorio')
@@ -30,10 +30,47 @@ const clienteValidation = [
     .trim()
     .isLength({ min: 3, max: 200 })
     .withMessage('La razón social debe tener entre 3 y 200 caracteres'),
+  // FIX: optional({ values: 'falsy' }) para ignorar strings vacíos ""
   body('email')
-    .optional()
+    .optional({ values: 'falsy' })
     .isEmail()
     .withMessage('Email inválido'),
+  body('contacto_email')
+    .optional({ values: 'falsy' })
+    .isEmail()
+    .withMessage('Email de contacto inválido'),
+  validateRequest
+];
+
+// ── Validaciones para EDITAR (todos los campos opcionales) ────────────────────
+// FIX PRINCIPAL: En PUT, ningún campo debe ser obligatorio.
+// Además, email usa optional({ values: 'falsy' }) para ignorar strings vacíos.
+const clienteUpdateValidation = [
+  body('codigo')
+    .optional({ values: 'falsy' })
+    .trim()
+    .toUpperCase()
+    .notEmpty()
+    .withMessage('El código no puede quedar vacío'),
+  body('nit')
+    .optional({ values: 'falsy' })
+    .trim()
+    .notEmpty()
+    .withMessage('El NIT no puede quedar vacío'),
+  body('razon_social')
+    .optional({ values: 'falsy' })
+    .trim()
+    .isLength({ min: 3, max: 200 })
+    .withMessage('La razón social debe tener entre 3 y 200 caracteres'),
+  // FIX: optional({ values: 'falsy' }) ignora "" y null, solo valida si hay valor real
+  body('email')
+    .optional({ values: 'falsy' })
+    .isEmail()
+    .withMessage('Email inválido'),
+  body('contacto_email')
+    .optional({ values: 'falsy' })
+    .isEmail()
+    .withMessage('Email de contacto inválido'),
   validateRequest
 ];
 
@@ -48,7 +85,7 @@ router.get('/:id', validateMongoId('id'), getCliente);
 router.post(
   '/',
   authorize(ROLES.ADMIN_SISTEMA, ROLES.JEFE_OPERACIONES),
-  clienteValidation,
+  clienteCreateValidation,
   createCliente
 );
 
@@ -56,7 +93,7 @@ router.put(
   '/:id',
   authorize(ROLES.ADMIN_SISTEMA, ROLES.JEFE_OPERACIONES),
   validateMongoId('id'),
-  clienteValidation,
+  clienteUpdateValidation,  // FIX: ahora usa las validaciones de actualización
   updateCliente
 );
 
