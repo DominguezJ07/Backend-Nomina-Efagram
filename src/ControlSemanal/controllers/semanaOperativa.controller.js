@@ -1,7 +1,50 @@
 const SemanaOperativa = require('../models/semanaOperativa.model');
 const semanaService = require('../services/semana.service');
 const Persona = require('../../Personal/models/persona.model');
+const RegistroDiario = require('../../Ejecucion/models/registroDiario.model');
+const ProyectoActividadLote = require('../../Proyectos/models/proyectoActividadLote.model');
 const { asyncHandler, ApiError } = require('../../middlewares/errorHandler');
+
+// ─────────────────────────────────────────────────────────────────
+// HELPER: calcula registros y cumplimiento para cada semana
+// Estos campos no existen en el modelo; se calculan en tiempo real
+// ─────────────────────────────────────────────────────────────────
+async function enrichSemanas(semanas) {
+  return Promise.all(semanas.map(async (s) => {
+    const obj = s.toObject ? s.toObject() : { ...s };
+    try {
+      // Total de registros diarios dentro del rango de la semana
+      const totalRegistros = await RegistroDiario.countDocuments({
+        fecha: { $gte: s.fecha_inicio, $lte: s.fecha_fin }
+      });
+
+      // PALs con registros en la semana (para calcular cumplimiento promedio)
+      const palIds = await RegistroDiario.distinct('proyecto_actividad_lote', {
+        fecha: { $gte: s.fecha_inicio, $lte: s.fecha_fin },
+        proyecto_actividad_lote: { $ne: null }
+      });
+
+      let cumplimiento = null;
+      if (palIds.length > 0) {
+        const pals = await ProyectoActividadLote.find({ _id: { $in: palIds } });
+        if (pals.length > 0) {
+          const totalPct = pals.reduce((acc, pal) => {
+            if (!pal.meta_minima || pal.meta_minima === 0) return acc;
+            return acc + Math.min(100, Math.round((pal.cantidad_ejecutada / pal.meta_minima) * 100));
+          }, 0);
+          cumplimiento = Math.round(totalPct / pals.length);
+        }
+      }
+
+      obj.registros    = totalRegistros;
+      obj.cumplimiento = cumplimiento;
+    } catch (_) {
+      obj.registros    = 0;
+      obj.cumplimiento = null;
+    }
+    return obj;
+  }));
+}
 
 /**
  * @desc    Obtener todas las semanas operativas
@@ -18,7 +61,7 @@ const getSemanas = asyncHandler(async (req, res) => {
   if (fecha_inicio && fecha_fin) {
     filter.$or = [
       { fecha_inicio: { $gte: new Date(fecha_inicio), $lte: new Date(fecha_fin) } },
-      { fecha_fin: { $gte: new Date(fecha_inicio), $lte: new Date(fecha_fin) } }
+      { fecha_fin:    { $gte: new Date(fecha_inicio), $lte: new Date(fecha_fin) } }
     ];
   }
 
@@ -28,10 +71,13 @@ const getSemanas = asyncHandler(async (req, res) => {
     .populate('cerrada_por')
     .sort({ fecha_inicio: -1 });
 
+  // Enriquecer con registros y cumplimiento calculados
+  const enriched = await enrichSemanas(semanas);
+
   res.status(200).json({
     success: true,
-    count: semanas.length,
-    data: semanas
+    count: enriched.length,
+    data: enriched
   });
 });
 
@@ -50,9 +96,11 @@ const getSemana = asyncHandler(async (req, res) => {
     throw new ApiError(404, 'Semana no encontrada');
   }
 
+  const [enriched] = await enrichSemanas([semana]);
+
   res.status(200).json({
     success: true,
-    data: semana
+    data: enriched
   });
 });
 
@@ -76,7 +124,6 @@ const getSemanaActual = asyncHandler(async (req, res) => {
  * @access  Private (Admin, Jefe)
  */
 const createSemana = asyncHandler(async (req, res) => {
-  // Validar que no exista una semana con el mismo rango
   const existente = await SemanaOperativa.findOne({
     fecha_inicio: req.body.fecha_inicio,
     fecha_fin: req.body.fecha_fin
@@ -126,20 +173,39 @@ const updateSemana = asyncHandler(async (req, res) => {
 });
 
 /**
+ * @desc    Eliminar una semana operativa
+ * @route   DELETE /api/v1/semanas/:id
+ * @access  Private (Admin)
+ */
+const deleteSemana = asyncHandler(async (req, res) => {
+  const semana = await SemanaOperativa.findById(req.params.id);
+
+  if (!semana) {
+    throw new ApiError(404, 'Semana no encontrada');
+  }
+
+  if (semana.estado === 'CERRADA') {
+    throw new ApiError(400, 'No se puede eliminar una semana cerrada');
+  }
+
+  await SemanaOperativa.findByIdAndDelete(req.params.id);
+
+  res.status(200).json({
+    success: true,
+    message: 'Semana eliminada exitosamente'
+  });
+});
+
+/**
  * @desc    Cerrar una semana operativa
  * @route   POST /api/v1/semanas/:id/cerrar
  * @access  Private (Admin, Jefe)
  */
 const cerrarSemana = asyncHandler(async (req, res) => {
-  // Buscar persona asociada al usuario
   let persona = await Persona.findOne({ usuario: req.user.id });
-  
-  // Si no existe persona asociada, usar el ID del usuario directamente
-  // Esto permite que administradores sin perfil de persona puedan cerrar semanas
   const cerradoPorId = persona ? persona._id : req.user.id;
 
   const semana = await semanaService.cerrarSemana(req.params.id, cerradoPorId);
-
   await semana.populate(['proyecto', 'nucleo', 'cerrada_por']);
 
   res.status(200).json({
@@ -197,6 +263,7 @@ module.exports = {
   getSemanaActual,
   createSemana,
   updateSemana,
+  deleteSemana,   // ← NUEVO
   cerrarSemana,
   puedeObtenerSemana,
   abrirSemana
