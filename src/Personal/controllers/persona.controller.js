@@ -1,6 +1,4 @@
 const Persona = require('../models/persona.model');
-const PersonaRol = require('../models/personaRol.model');
-const Rol = require('../models/rol.model');
 const personaService = require('../services/persona.service');
 const { asyncHandler, ApiError } = require('../../middlewares/errorHandler');
 
@@ -131,113 +129,11 @@ const vincularUsuario = asyncHandler(async (req, res) => {
   });
 });
 
-/**
- * @desc    Obtener todos los supervisores activos
- * @route   GET /api/v1/personas/supervisores
- * @access  Private
- *
- * Lógica:
- * 1. Busca el Rol con codigo = 'SUPERVISOR'
- * 2. Obtiene los PersonaRol activos con ese rol
- * 3. Devuelve las Personas correspondientes (con estado ACTIVO)
- * 4. Soporta query param ?incluir_inactivos=true para traer todos
- */
-const getSupervisores = asyncHandler(async (req, res) => {
-  const { incluir_inactivos } = req.query;
-
-  // 1. Encontrar el rol SUPERVISOR en la colección de Roles
-  const rolSupervisor = await Rol.findOne({ codigo: 'SUPERVISOR' });
-
-  if (!rolSupervisor) {
-    // Si no existe el rol todavía, devolver array vacío en lugar de 500
-    return res.status(200).json({
-      success: true,
-      count: 0,
-      data: [],
-      mensaje: 'El rol SUPERVISOR no está configurado en el sistema'
-    });
-  }
-
-  // 2. Obtener todas las asignaciones activas de ese rol
-  const asignaciones = await PersonaRol.find({
-    rol: rolSupervisor._id,
-    activo: true
-  }).select('persona');
-
-  const personaIds = asignaciones.map(a => a.persona);
-
-  // 3. Construir filtro de personas
-  const filtroPersona = { _id: { $in: personaIds } };
-
-  // Por defecto solo ACTIVOS, a menos que pidan incluir inactivos
-  if (incluir_inactivos !== 'true') {
-    filtroPersona.estado = 'ACTIVO';
-  }
-
-  // 4. Obtener los datos completos de cada supervisor
-  const supervisores = await Persona.find(filtroPersona)
-    .populate('usuario', 'email')
-    .sort({ apellidos: 1, nombres: 1 });
-
-  res.status(200).json({
-    success: true,
-    count: supervisores.length,
-    data: supervisores
-  });
-});
-
-/**
- * @desc    Obtener todas las personas con un rol específico
- * @route   GET /api/v1/personas/por-rol/:codigoRol
- * @access  Private
- *
- * Útil para: TRABAJADOR, ADMIN_FINCA, JEFE_OPERACIONES, etc.
- * Ejemplo: GET /api/v1/personas/por-rol/TRABAJADOR
- */
-const getPersonasPorRol = asyncHandler(async (req, res) => {
-  const { codigoRol } = req.params;
-  const { incluir_inactivos } = req.query;
-
-  // 1. Buscar el rol por código (case-insensitive)
-  const rol = await Rol.findOne({ codigo: codigoRol.toUpperCase().trim() });
-
-  if (!rol) {
-    throw new ApiError(404, `El rol '${codigoRol}' no existe en el sistema`);
-  }
-
-  // 2. Asignaciones activas con ese rol
-  const asignaciones = await PersonaRol.find({
-    rol: rol._id,
-    activo: true
-  }).select('persona');
-
-  const personaIds = asignaciones.map(a => a.persona);
-
-  // 3. Filtro de personas
-  const filtroPersona = { _id: { $in: personaIds } };
-  if (incluir_inactivos !== 'true') {
-    filtroPersona.estado = 'ACTIVO';
-  }
-
-  const personas = await Persona.find(filtroPersona)
-    .populate('usuario', 'email')
-    .sort({ apellidos: 1, nombres: 1 });
-
-  res.status(200).json({
-    success: true,
-    rol: { id: rol._id, codigo: rol.codigo, nombre: rol.nombre },
-    count: personas.length,
-    data: personas
-  });
-});
-
 module.exports = {
   getPersonas,
   getPersona,
   createPersona,
   updatePersona,
   retirarPersona,
-  vincularUsuario,
-  getSupervisores,
-  getPersonasPorRol
+  vincularUsuario
 };
