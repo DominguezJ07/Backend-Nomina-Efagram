@@ -9,7 +9,9 @@ const {
   createPersona,
   updatePersona,
   retirarPersona,
-  vincularUsuario
+  vincularUsuario,
+  getSupervisores,
+  getPersonasPorRol
 } = require('../controllers/persona.controller');
 
 const router = express.Router();
@@ -53,7 +55,30 @@ const personaValidation = [
 // Todas las rutas requieren autenticación
 router.use(authenticate);
 
+// ──────────────────────────────────────────────────────────
+// RUTAS ESPECIALES — deben ir ANTES de /:id para que Express
+// no las confunda con un parámetro dinámico
+// ──────────────────────────────────────────────────────────
+
+/**
+ * GET /api/v1/personas/supervisores
+ * Devuelve solo las personas con rol SUPERVISOR activo.
+ * Query: ?incluir_inactivos=true para incluir personas retiradas/inactivas
+ */
+router.get('/supervisores', getSupervisores);
+
+/**
+ * GET /api/v1/personas/por-rol/:codigoRol
+ * Devuelve personas con cualquier rol específico.
+ * Ejemplo: /api/v1/personas/por-rol/TRABAJADOR
+ * Ejemplo: /api/v1/personas/por-rol/JEFE_OPERACIONES
+ * Query: ?incluir_inactivos=true
+ */
+router.get('/por-rol/:codigoRol', getPersonasPorRol);
+
+// ──────────────────────────────────────────────────────────
 // Rutas de consulta (todos los roles autenticados)
+// ──────────────────────────────────────────────────────────
 router.get('/', getPersonas);
 router.get('/:id', validateMongoId('id'), getPersona);
 
