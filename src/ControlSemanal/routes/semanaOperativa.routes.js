@@ -9,6 +9,7 @@ const {
   getSemanaActual,
   createSemana,
   updateSemana,
+  deleteSemana,       // ← NUEVO
   cerrarSemana,
   puedeObtenerSemana,
   abrirSemana
@@ -16,7 +17,7 @@ const {
 
 const router = express.Router();
 
-// Validaciones
+// Validaciones para crear/actualizar
 const semanaValidation = [
   body('codigo')
     .notEmpty()
@@ -49,7 +50,7 @@ const semanaValidation = [
 // Todas las rutas requieren autenticación
 router.use(authenticate);
 
-// Rutas especiales (antes de :id)
+// ── Rutas especiales (deben ir ANTES de /:id) ──────────────────────────────
 router.get('/actual', getSemanaActual);
 
 router.post('/:id/cerrar',
@@ -69,7 +70,7 @@ router.post('/:id/abrir',
   abrirSemana
 );
 
-// Rutas CRUD
+// ── CRUD estándar ──────────────────────────────────────────────────────────
 router.get('/', getSemanas);
 router.get('/:id', validateMongoId('id'), getSemana);
 
@@ -85,6 +86,14 @@ router.put(
   authorize(ROLES.ADMIN_SISTEMA, ROLES.JEFE_OPERACIONES),
   validateMongoId('id'),
   updateSemana
+);
+
+// ← NUEVO: ruta DELETE que el frontend necesita
+router.delete(
+  '/:id',
+  authorize(ROLES.ADMIN_SISTEMA),
+  validateMongoId('id'),
+  deleteSemana
 );
 
 module.exports = router;
