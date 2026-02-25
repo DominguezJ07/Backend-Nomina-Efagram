@@ -96,6 +96,10 @@ const registroDiarioRoutes = require('./Ejecucion/routes/registroDiario.routes')
 const novedadRoutes = require('./Ejecucion/routes/novedad.routes');
 const semanaOperativaRoutes = require('./ControlSemanal/routes/semanaOperativa.routes');
 
+// Rutas de Catálogos
+const procesoRoutes     = require('./Catalogos/routes/proceso.routes');
+const intervencionRoutes = require('./Catalogos/routes/intervencion.routes');
+
 // Rutas de Control Semanal
 const consolidadoRoutes = require('./ControlSemanal/routes/consolidado.routes');
 const indicadorRoutes = require('./ControlSemanal/routes/indicador.routes');
@@ -137,6 +141,10 @@ apiRouter.use('/precios-negociados', precioNegociadoRoutes);
 apiRouter.use('/registros-diarios', registroDiarioRoutes);
 apiRouter.use('/novedades', novedadRoutes);
 apiRouter.use('/semanas', semanaOperativaRoutes);
+
+// Montar rutas de Catálogos
+apiRouter.use('/procesos',      procesoRoutes);
+apiRouter.use('/intervenciones', intervencionRoutes);
 
 // Montar rutas de Control Semanal
 apiRouter.use('/consolidados', consolidadoRoutes);
