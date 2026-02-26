@@ -21,6 +21,13 @@ const proyectoSchema = new mongoose.Schema(
 
     cliente: { type: mongoose.Schema.Types.ObjectId, ref: 'Cliente', required: true },
 
+    // ✅ NUEVO: Zona territorial del proyecto
+    zona: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Zona',
+      default: null,
+    },
+
     fecha_inicio: { type: Date, required: true },
     fecha_fin_estimada: { type: Date },
     fecha_fin_real: { type: Date },
@@ -33,7 +40,6 @@ const proyectoSchema = new mongoose.Schema(
 
     valor_contrato: { type: Number, min: 0 },
 
-    // ✅ Totales (ya los tenías)
     presupuesto_por_intervencion: {
       mantenimiento: {
         cantidad_actividades: { type: Number, default: 0, min: 0 },
@@ -49,7 +55,6 @@ const proyectoSchema = new mongoose.Schema(
       },
     },
 
-    // ✅ NUEVO: Guardar actividades reales
     actividades_por_intervencion: {
       mantenimiento: { type: [actividadSchema], default: [] },
       no_programadas: { type: [actividadSchema], default: [] },
@@ -68,7 +73,6 @@ const proyectoSchema = new mongoose.Schema(
   { timestamps: true, versionKey: false }
 );
 
-// ✅ Recalcular totales desde actividades (recomendado para consistencia)
 function calcTotales(acts = []) {
   const cantidadTotal = acts.reduce((s, a) => s + (Number(a.cantidad) || 0), 0);
   const montoTotal = acts.reduce(
@@ -86,17 +90,15 @@ proyectoSchema.pre('save', function () {
     throw new Error('La fecha fin real no puede ser menor a la fecha de inicio');
   }
 
-  // ✅ Siempre recalcular totales desde las actividades guardadas
   const acts = this.actividades_por_intervencion || {};
-
   const m = calcTotales(acts.mantenimiento || []);
   const n = calcTotales(acts.no_programadas || []);
   const e = calcTotales(acts.establecimiento || []);
 
   this.presupuesto_por_intervencion = {
-    mantenimiento: { cantidad_actividades: m.cantidadTotal, monto_presupuestado: m.montoTotal },
+    mantenimiento:  { cantidad_actividades: m.cantidadTotal, monto_presupuestado: m.montoTotal },
     no_programadas: { cantidad_actividades: n.cantidadTotal, monto_presupuestado: n.montoTotal },
-    establecimiento: { cantidad_actividades: e.cantidadTotal, monto_presupuestado: e.montoTotal },
+    establecimiento:{ cantidad_actividades: e.cantidadTotal, monto_presupuestado: e.montoTotal },
   };
 });
 

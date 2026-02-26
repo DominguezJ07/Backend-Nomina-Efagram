@@ -106,6 +106,12 @@ const indicadorRoutes = require('./ControlSemanal/routes/indicador.routes');
 const alertaRoutes = require('./ControlSemanal/routes/alerta.routes');
 const controlSemanalRoutes = require('./ControlSemanal/routes/controlSemanal.routes');
 
+
+// ── 1. IMPORTS (agregar junto a los otros requires de Proyectos) ──
+const actividadProyectoRoutes  = require('./Proyectos/routes/actividadProyecto.routes');
+const subproyectoRoutes        = require('./Proyectos/routes/subproyecto.routes');
+const asignacionActividadRoutes = require('./Proyectos/routes/asignacionActividad.routes');
+
 // ========================================
 // RUTAS DE LA API
 // ========================================
@@ -151,6 +157,11 @@ apiRouter.use('/consolidados', consolidadoRoutes);
 apiRouter.use('/indicadores', indicadorRoutes);
 apiRouter.use('/alertas', alertaRoutes);
 apiRouter.use('/control-semanal', controlSemanalRoutes);
+
+// ── 2. MONTAJE (agregar dentro del bloque apiRouter.use(...)) ──
+apiRouter.use('/actividades-proyecto',  actividadProyectoRoutes);
+apiRouter.use('/subproyectos',          subproyectoRoutes);
+apiRouter.use('/asignaciones',          asignacionActividadRoutes);
 
 // Montar rutas en /api/v1
 app.use('/api/v1', apiRouter);
