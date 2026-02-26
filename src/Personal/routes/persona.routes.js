@@ -47,6 +47,18 @@ const personaValidation = [
     .optional()
     .isIn(['INDEFINIDO', 'FIJO', 'OBRA_LABOR', 'APRENDIZ', 'TEMPORAL'])
     .withMessage('Tipo de contrato inválido'),
+  body('finca')
+    .optional()
+    .isMongoId()
+    .withMessage('ID de finca inválido'),
+  body('proceso')
+    .optional()
+    .isMongoId()
+    .withMessage('ID de proceso inválido'),
+  body('supervisor')
+    .optional()
+    .isMongoId()
+    .withMessage('ID de supervisor inválido'),
   validateRequest
 ];
 

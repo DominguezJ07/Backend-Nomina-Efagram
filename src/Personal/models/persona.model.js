@@ -91,6 +91,23 @@ const personaSchema = new mongoose.Schema({
     trim: true
   },
   
+  // Asignación territorial y operativa
+  finca: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Finca',
+    default: null
+  },
+  proceso: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Proceso',
+    default: null
+  },
+  supervisor: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Persona',
+    default: null
+  },
+
   // Estado
   estado: {
     type: String,
@@ -120,6 +137,9 @@ const personaSchema = new mongoose.Schema({
 personaSchema.index({ num_doc: 1 });
 personaSchema.index({ usuario: 1 });
 personaSchema.index({ estado: 1 });
+personaSchema.index({ finca: 1 });
+personaSchema.index({ proceso: 1 });
+personaSchema.index({ supervisor: 1 });
 
 // Virtual para nombre completo
 personaSchema.virtual('nombreCompleto').get(function() {

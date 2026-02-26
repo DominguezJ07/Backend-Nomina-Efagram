@@ -12,7 +12,8 @@
     "seed:proyectos": "node src/infrastructure/db/seedProyectos.js",
     "seed:ejecucion": "node src/infrastructure/db/seedEjecucion.js",
     "seed:control": "node src/infrastructure/db/seedControlSemanal.js",
-    "seed:all": "npm run seed && npm run seed:users && npm run seed:personal && npm run seed:proyectos && npm run seed:ejecucion && npm run seed:control"
+    "seed:catalogos": "node src/infrastructure/db/seedCatalogos.js",
+    "seed:all": "npm run seed && npm run seed:users && npm run seed:personal && npm run seed:proyectos && npm run seed:ejecucion && npm run seed:control && npm run seed:catalogos"
   },
   "keywords": [
     "nomina",

@@ -16,6 +16,9 @@ const getPersonas = asyncHandler(async (req, res) => {
 
   const personas = await Persona.find(filter)
     .populate('usuario', 'email roles')
+    .populate('finca', 'nombre codigo')
+    .populate('proceso', 'nombre codigo')
+    .populate('supervisor', 'nombres apellidos num_doc cargo')
     .sort({ apellidos: 1 });
 
   res.status(200).json({
@@ -31,7 +34,11 @@ const getPersonas = asyncHandler(async (req, res) => {
  * @access  Private
  */
 const getPersona = asyncHandler(async (req, res) => {
-  const persona = await Persona.findById(req.params.id).populate('usuario');
+  const persona = await Persona.findById(req.params.id)
+    .populate('usuario', 'email roles')
+    .populate('finca', 'nombre codigo')
+    .populate('proceso', 'nombre codigo')
+    .populate('supervisor', 'nombres apellidos num_doc cargo');
 
   if (!persona) {
     throw new ApiError(404, 'Persona no encontrada');
@@ -78,7 +85,11 @@ const updatePersona = asyncHandler(async (req, res) => {
     req.params.id,
     req.body,
     { new: true, runValidators: true }
-  ).populate('usuario');
+  )
+    .populate('usuario', 'email roles')
+    .populate('finca', 'nombre codigo')
+    .populate('proceso', 'nombre codigo')
+    .populate('supervisor', 'nombres apellidos num_doc cargo');
 
   res.status(200).json({
     success: true,
