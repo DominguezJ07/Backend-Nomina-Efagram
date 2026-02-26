@@ -21,6 +21,7 @@ const getProyectos = asyncHandler(async (req, res) => {
   const proyectos = await Proyecto.find(filter)
     .populate('cliente')
     .populate('responsable')
+    .populate('zona')
     .sort({ createdAt: -1 });
   
   res.status(200).json({
@@ -38,7 +39,8 @@ const getProyectos = asyncHandler(async (req, res) => {
 const getProyecto = asyncHandler(async (req, res) => {
   const proyecto = await Proyecto.findById(req.params.id)
     .populate('cliente')
-    .populate('responsable');
+    .populate('responsable')
+    .populate('zona');
   
   if (!proyecto) {
     throw new ApiError(404, 'Proyecto no encontrado');
@@ -80,6 +82,7 @@ const createProyecto = asyncHandler(async (req, res) => {
     nombre,
     cliente,
     responsable,
+    zona,
     fecha_inicio,
     fecha_fin_estimada,
     tipo_contrato,
@@ -135,6 +138,7 @@ const createProyecto = asyncHandler(async (req, res) => {
     nombre: nombre.trim(),
     cliente,
     responsable: responsable || null,
+    zona: zona || null,
     fecha_inicio,
     fecha_fin_estimada: fecha_fin_estimada || null,
     tipo_contrato,
@@ -143,7 +147,7 @@ const createProyecto = asyncHandler(async (req, res) => {
     actividades_por_intervencion: actividadesNormalizadas,
   });
 
-  await proyecto.populate(['cliente', 'responsable']);
+  await proyecto.populate(['cliente', 'responsable', 'zona']);
 
   res.status(201).json({
     success: true,
@@ -178,7 +182,7 @@ const updateProyecto = asyncHandler(async (req, res) => {
   }
 
   await proyecto.save();
-  await proyecto.populate(['cliente', 'responsable']);
+  await proyecto.populate(['cliente', 'responsable', 'zona']);
 
   res.status(200).json({
     success: true,
