@@ -140,11 +140,58 @@ const vincularUsuario = asyncHandler(async (req, res) => {
   });
 });
 
+/**
+ * @desc    Buscar personas por cédula o nombre (para asignación a cuadrillas/contratos)
+ * @route   GET /api/v1/personas/buscar?q=texto&estado=ACTIVO
+ * @access  Private
+ */
+const buscarPersonas = asyncHandler(async (req, res) => {
+  const { q, estado } = req.query;
+
+  if (!q || !q.trim()) {
+    return res.status(400).json({
+      success: false,
+      message: 'El parámetro de búsqueda "q" es obligatorio'
+    });
+  }
+
+  const regex = new RegExp(q.trim(), 'i');
+
+  const filter = {
+    $or: [
+      { num_doc: regex },
+      { nombres: regex },
+      { apellidos: regex }
+    ]
+  };
+
+  // Por defecto solo activos, pero se puede forzar otro estado
+  if (estado) {
+    filter.estado = estado;
+  } else {
+    filter.estado = 'ACTIVO';
+  }
+
+  const personas = await Persona.find(filter)
+    .select('nombres apellidos num_doc tipo_doc cargo telefono estado finca proceso')
+    .populate('finca', 'nombre codigo')
+    .populate('proceso', 'nombre codigo')
+    .sort({ apellidos: 1 })
+    .limit(50);
+
+  res.status(200).json({
+    success: true,
+    count: personas.length,
+    data: personas
+  });
+});
+
 module.exports = {
   getPersonas,
   getPersona,
   createPersona,
   updatePersona,
   retirarPersona,
-  vincularUsuario
+  vincularUsuario,
+  buscarPersonas
 };

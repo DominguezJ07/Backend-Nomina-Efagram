@@ -50,6 +50,14 @@ const ESTADOS = {
   }
 };
 
+// Estados de Contrato
+const ESTADOS_CONTRATO = {
+  BORRADOR:  'BORRADOR',
+  ACTIVO:    'ACTIVO',
+  CERRADO:   'CERRADO',
+  CANCELADO: 'CANCELADO',
+};
+
 // Estados de Proyecto (exportación individual)
 const ESTADOS_PROYECTO = {
   PLANEADO: 'PLANEADO',
@@ -185,6 +193,7 @@ const MENSAJES_ERROR = {
 module.exports = {
   ESTADOS,
   ESTADOS_PROYECTO,
+  ESTADOS_CONTRATO,
   ESTADOS_PAL,
   ESTADOS_REGISTRO,
   ESTADOS_SEMANA,

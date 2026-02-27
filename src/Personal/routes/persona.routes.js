@@ -9,7 +9,8 @@ const {
   createPersona,
   updatePersona,
   retirarPersona,
-  vincularUsuario
+  vincularUsuario,
+  buscarPersonas
 } = require('../controllers/persona.controller');
 
 const router = express.Router();
@@ -67,6 +68,7 @@ router.use(authenticate);
 
 // Rutas de consulta (todos los roles autenticados)
 router.get('/', getPersonas);
+router.get('/buscar', buscarPersonas);   // ← búsqueda por cédula o nombre
 router.get('/:id', validateMongoId('id'), getPersona);
 
 // Rutas de modificación (solo Admin y RRHH)

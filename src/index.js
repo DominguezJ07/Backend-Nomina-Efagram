@@ -112,6 +112,9 @@ const actividadProyectoRoutes  = require('./Proyectos/routes/actividadProyecto.r
 const subproyectoRoutes        = require('./Proyectos/routes/subproyecto.routes');
 const asignacionActividadRoutes = require('./Proyectos/routes/asignacionActividad.routes');
 
+// Rutas de Contratos
+const contratoRoutes = require('./Contratos/routes/contrato.routes');
+
 // ========================================
 // RUTAS DE LA API
 // ========================================
@@ -162,6 +165,9 @@ apiRouter.use('/control-semanal', controlSemanalRoutes);
 apiRouter.use('/actividades-proyecto',  actividadProyectoRoutes);
 apiRouter.use('/subproyectos',          subproyectoRoutes);
 apiRouter.use('/asignaciones',          asignacionActividadRoutes);
+
+// Montar rutas de Contratos
+apiRouter.use('/contratos', contratoRoutes);
 
 // Montar rutas en /api/v1
 app.use('/api/v1', apiRouter);
