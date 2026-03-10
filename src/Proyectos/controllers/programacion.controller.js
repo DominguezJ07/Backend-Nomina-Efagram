@@ -123,20 +123,21 @@ exports.createProgramacion = async (req, res) => {
       observaciones:       observaciones || '',
     });
 
-    // Crear 7 registros diarios en paralelo
-    const registrosDiarios = await Promise.all(
-      Array.from({ length: 7 }, (_, i) => {
-        const fecha = new Date(fechaInicio);
-        fecha.setDate(fecha.getDate() + i);
-        return RegistroDiarioProgramacion.create({
-          programacion:       programacion._id,
-          fecha,
-          cantidad_ejecutada: 0,
-          estado:             'PENDIENTE',
-          registrado_por:     usuario_id,
-        });
-      })
-    );
+    // Crear 7 registros diarios con insertMany (bypasea hooks para evitar race condition)
+    const registrosData = Array.from({ length: 7 }, (_, i) => {
+      const fecha = new Date(fechaInicio);
+      fecha.setDate(fecha.getDate() + i);
+      return {
+        programacion:       programacion._id,
+        fecha,
+        cantidad_ejecutada: 0,
+        estado:             'PENDIENTE',
+        registrado_por:     usuario_id,
+        validado:           false,
+        observaciones:      '',
+      };
+    });
+    const registrosDiarios = await RegistroDiarioProgramacion.insertMany(registrosData, { ordered: true });
 
     await programacion.populate([
       { path: 'contrato',  select: 'codigo' },

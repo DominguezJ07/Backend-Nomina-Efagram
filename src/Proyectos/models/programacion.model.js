@@ -175,9 +175,7 @@ programacionSchema.pre('save', async function (next) {
     });
 
     if (existente) {
-      throw new Error(
-        'Ya existe una programación para este contrato en esta fecha'
-      );
+      return next(new Error('Ya existe una programación para este contrato en esta fecha'));
     }
   }
   next();
