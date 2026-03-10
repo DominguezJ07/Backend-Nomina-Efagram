@@ -85,7 +85,7 @@ exports.getRegistroDiarioById = async (req, res) => {
 exports.createRegistroDiario = async (req, res) => {
   try {
     const { programacion_id, fecha, cantidad_ejecutada, observaciones } = req.body;
-    const usuario_id = req.user?._id || null;
+    const usuario_id = req.user?.id || null;
 
     // Validar que la programación existe
     const programacion = await Programacion.findById(programacion_id);
@@ -325,7 +325,7 @@ exports.getRegistrosSemana = async (req, res) => {
 exports.validarRegistro = async (req, res) => {
   try {
     const { id } = req.params;
-    const usuario_id = req.user?._id || null;
+    const usuario_id = req.user?.id || null;
 
     const registro = await RegistroDiarioProgramacion.findById(id);
 

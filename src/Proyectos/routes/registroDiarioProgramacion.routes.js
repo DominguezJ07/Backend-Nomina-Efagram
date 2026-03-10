@@ -129,7 +129,7 @@ router.put(
   '/:id/validar',
   [
     validateMongoId('id'),
-    authorize([ROLES.ADMIN, ROLES.SUPERVISOR]),
+    authorize(ROLES.ADMIN_SISTEMA, ROLES.SUPERVISOR),
   ],
   registroDiarioController.validarRegistro
 );
@@ -141,7 +141,7 @@ router.delete(
   '/:id',
   [
     validateMongoId('id'),
-    authorize([ROLES.ADMIN, ROLES.SUPERVISOR]),
+    authorize(ROLES.ADMIN_SISTEMA, ROLES.SUPERVISOR),
   ],
   registroDiarioController.deleteRegistroDiario
 );

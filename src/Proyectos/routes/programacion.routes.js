@@ -115,7 +115,7 @@ router.delete(
   '/:id',
   [
     validateMongoId('id'),
-    authorize([ROLES.ADMIN, ROLES.SUPERVISOR]),
+    authorize(ROLES.ADMIN_SISTEMA, ROLES.SUPERVISOR),
   ],
   programacionController.deleteProgramacion
 );

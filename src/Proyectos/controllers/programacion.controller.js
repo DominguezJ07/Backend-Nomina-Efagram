@@ -104,7 +104,7 @@ exports.getProgramacionById = async (req, res) => {
 exports.createProgramacion = async (req, res) => {
   try {
     const { contrato_id, fecha_inicial } = req.body;
-    const usuario_id = req.user?._id || null;
+    const usuario_id = req.user?.id || null;
 
     // Validar que el contrato existe
     const contrato = await Contrato.findById(contrato_id)
@@ -192,7 +192,7 @@ exports.updateProgramacion = async (req, res) => {
   try {
     const { id } = req.params;
     const { observaciones, estado } = req.body;
-    const usuario_id = req.user?._id || null;
+    const usuario_id = req.user?.id || null;
 
     const programacion = await Programacion.findById(id);
 
