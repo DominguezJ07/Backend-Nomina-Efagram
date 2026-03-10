@@ -20,13 +20,7 @@ const programacionSchema = new mongoose.Schema(
     fecha_inicial: {
       type: Date,
       required: [true, 'La fecha inicial es obligatoria'],
-      validate: {
-        validator: function (value) {
-          // Validar que no sea en el pasado
-          return new Date(value) >= new Date(new Date().setHours(0, 0, 0, 0));
-        },
-        message: 'La fecha inicial no puede ser en el pasado',
-      },
+
     },
 
     fecha_final: {
@@ -52,13 +46,13 @@ const programacionSchema = new mongoose.Schema(
     // ── DATOS PROYECTADOS (Heredados del contrato) ──────────────────
     cantidad_proyectada: {
       type: Number,
-      required: [true, 'La cantidad proyectada es obligatoria'],
-      min: [0.01, 'La cantidad proyectada debe ser mayor a 0'],
+      default: 1,
+      min: [0, 'La cantidad proyectada debe ser mayor o igual a 0'],
     },
 
     valor_proyectado: {
       type: Number,
-      required: [true, 'El valor proyectado es obligatorio'],
+      default: 0,
       min: [0, 'El valor proyectado debe ser mayor o igual a 0'],
     },
 
