@@ -1,49 +1,49 @@
 // ==========================================
-// MODELO: PROGRAMACIÓN
+// MODELO: PROGRAMACIÓN — VERSIÓN CORREGIDA
 // ==========================================
-// Descripción: Define la estructura de una programación semanal
-// que controla la ejecución de un contrato durante 7 días
-// Ubicación: src/Proyectos/models/programacion.model.js
+// BUGS CORREGIDOS:
+//
+// BUG #1 — "next is not a function":
+//   Los pre-save hooks async NO deben recibir `next` como parámetro
+//   ni llamar `next()` en Mongoose v6+. En Mongoose moderno los hooks
+//   async se resuelven con return (éxito) o throw (error).
+//   FIX: convertir los dos hooks a async sin `next`, usar throw para errores.
+//
+// BUG #2 — fecha_final = fecha_inicial + 7 días (debería ser +6):
+//   Una semana de 7 días va del día 0 al día 6 (= +6 días, no +7).
+//   Con +7 la semana tiene 8 días.
+//   FIX: setDate(getDate() + 6).
 
 const mongoose = require('mongoose');
 
 const programacionSchema = new mongoose.Schema(
   {
-    // ── CONTRATO (Referencia) ───────────────────────────────────────
     contrato: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Contrato',
       required: [true, 'El contrato es obligatorio'],
     },
 
-    // ── FECHAS ──────────────────────────────────────────────────────
     fecha_inicial: {
       type: Date,
       required: [true, 'La fecha inicial es obligatoria'],
-
     },
 
     fecha_final: {
       type: Date,
-      // Se calcula automáticamente: fecha_inicial + 7 días
-      // Aunque se puede guardar para evitar cálculos repetidos
     },
 
-    // ── SEMANA (Calculado) ──────────────────────────────────────────
     semana: {
       type: Number,
       default: 1,
-      // Se calcula según la fecha actual respecto a fecha_inicial
     },
 
-    // ── ESTADO ──────────────────────────────────────────────────────
     estado: {
       type: String,
       enum: ['ACTIVA', 'COMPLETADA', 'CANCELADA', 'PAUSADA'],
       default: 'ACTIVA',
     },
 
-    // ── DATOS PROYECTADOS (Heredados del contrato) ──────────────────
     cantidad_proyectada: {
       type: Number,
       default: 1,
@@ -56,7 +56,6 @@ const programacionSchema = new mongoose.Schema(
       min: [0, 'El valor proyectado debe ser mayor o igual a 0'],
     },
 
-    // ── REFERENCIAS A DATOS DEL CONTRATO ────────────────────────────
     actividad: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'ActividadCatalogo',
@@ -75,23 +74,19 @@ const programacionSchema = new mongoose.Schema(
       required: [true, 'El lote es obligatorio'],
     },
 
-    // ── CÁLCULOS AUTOMÁTICOS ───────────────────────────────────────
-    // Cantidad Total Ejecutada (suma de todos los días)
     cantidad_ejecutada_total: {
       type: Number,
       default: 0,
       min: 0,
     },
 
-    // Porcentaje de cumplimiento
     porcentaje_cumplimiento: {
       type: Number,
       default: 0,
       min: 0,
-      max: 200, // Permitir >100% en caso de sobre-cumplimiento
+      max: 200,
     },
 
-    // ── TRAZABILIDAD ────────────────────────────────────────────────
     creado_por: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Persona',
@@ -104,7 +99,6 @@ const programacionSchema = new mongoose.Schema(
       default: null,
     },
 
-    // ── OBSERVACIONES ───────────────────────────────────────────────
     observaciones: {
       type: String,
       trim: true,
@@ -119,7 +113,7 @@ const programacionSchema = new mongoose.Schema(
   }
 );
 
-// ── ÍNDICES PARA PERFORMANCE ────────────────────────────────────────
+// ── ÍNDICES ───────────────────────────────────────────────────────────
 programacionSchema.index({ contrato: 1 });
 programacionSchema.index({ fecha_inicial: 1 });
 programacionSchema.index({ estado: 1 });
@@ -127,61 +121,61 @@ programacionSchema.index({ finca: 1 });
 programacionSchema.index({ actividad: 1 });
 programacionSchema.index({ contrato: 1, fecha_inicial: 1 }, { unique: false });
 
-// ── VIRTUAL: Días restantes ────────────────────────────────────────
+// ── VIRTUAL: Días restantes ───────────────────────────────────────────
 programacionSchema.virtual('dias_restantes').get(function () {
-  const hoy = new Date();
-  const finalDate = new Date(this.fecha_final);
-  const diferencia = finalDate.getTime() - hoy.getTime();
-  const dias = Math.ceil(diferencia / (1000 * 3600 * 24));
-  return Math.max(0, dias);
+  const hoy      = new Date();
+  const fin      = new Date(this.fecha_final);
+  const diff     = fin.getTime() - hoy.getTime();
+  return Math.max(0, Math.ceil(diff / (1000 * 3600 * 24)));
 });
 
-// ── VIRTUAL: Estado de la semana (En progreso, Completada, etc.) ────
+// ── VIRTUAL: Estado de la semana ──────────────────────────────────────
 programacionSchema.virtual('estado_semana').get(function () {
   if (this.estado === 'COMPLETADA') return 'COMPLETADA';
-  if (this.estado === 'CANCELADA') return 'CANCELADA';
-  if (this.dias_restantes <= 0) return 'EXPIRADA';
-  if (this.dias_restantes <= 2) return 'POR VENCER';
+  if (this.estado === 'CANCELADA')  return 'CANCELADA';
+  if (this.dias_restantes <= 0)     return 'EXPIRADA';
+  if (this.dias_restantes <= 2)     return 'POR VENCER';
   return 'EN PROGRESO';
 });
 
-// ── MIDDLEWARE: Calcular fecha_final antes de guardar ────────────────
-programacionSchema.pre('save', function (next) {
-  // Calcular fecha final (7 días después de fecha inicial)
+// ── PRE-SAVE #1: Calcular fecha_final y semana ────────────────────────
+// ✅ FIX BUG #1: async sin `next` (Mongoose v6+ resuelve con return/throw)
+// ✅ FIX BUG #2: +6 días (semana = día 0 al día 6 = 7 días total)
+programacionSchema.pre('save', async function () {
+  // Calcular fecha_final solo si no fue seteada explícitamente
   if (this.fecha_inicial && !this.fecha_final) {
     const fechaFinal = new Date(this.fecha_inicial);
-    fechaFinal.setDate(fechaFinal.getDate() + 7);
+    fechaFinal.setDate(fechaFinal.getDate() + 6); // ✅ +6 = 7 días
     this.fecha_final = fechaFinal;
   }
 
-  // Calcular semana (1, 2, 3, etc. basado en fecha actual)
+  // Calcular número de semana relativo a fecha_inicial
   if (this.fecha_inicial) {
-    const hoy = new Date();
-    const diferencia = hoy.getTime() - new Date(this.fecha_inicial).getTime();
-    const dias = Math.floor(diferencia / (1000 * 3600 * 24));
-    this.semana = Math.max(1, Math.floor(dias / 7) + 1);
+    const hoy       = new Date();
+    const diff      = hoy.getTime() - new Date(this.fecha_inicial).getTime();
+    const dias      = Math.floor(diff / (1000 * 3600 * 24));
+    this.semana     = Math.max(1, Math.floor(dias / 7) + 1);
   }
-
-  next();
+  // No retorna nada = éxito en Mongoose v6+
 });
 
-// ── MIDDLEWARE: Validar que no exista otra programación igual ───────
-programacionSchema.pre('save', async function (next) {
+// ── PRE-SAVE #2: Validar que no exista duplicado ──────────────────────
+// ✅ FIX BUG #1: async sin `next`, usa throw para errores
+programacionSchema.pre('save', async function () {
   if (this.isNew) {
     const existente = await mongoose.model('Programacion').findOne({
-      contrato: this.contrato,
+      contrato:      this.contrato,
       fecha_inicial: this.fecha_inicial,
-      _id: { $ne: this._id },
+      _id:           { $ne: this._id },
     });
 
     if (existente) {
-      return next(new Error('Ya existe una programación para este contrato en esta fecha'));
+      throw new Error('Ya existe una programación para este contrato en esta fecha');
     }
   }
-  next();
 });
 
-// ── MÉTODO: Actualizar porcentaje ──────────────────────────────────
+// ── MÉTODOS ───────────────────────────────────────────────────────────
 programacionSchema.methods.actualizarPorcentaje = function () {
   if (this.cantidad_proyectada > 0) {
     this.porcentaje_cumplimiento = Math.round(
@@ -191,24 +185,19 @@ programacionSchema.methods.actualizarPorcentaje = function () {
   return this.save();
 };
 
-// ── MÉTODO: Verificar si está completada ───────────────────────────
 programacionSchema.methods.estaCompletada = async function () {
   const registros = await mongoose.model('RegistroDiarioProgramacion').find({
     programacion: this._id,
     estado: 'COMPLETADO',
   });
-
-  // Debe tener 7 registros completados
   return registros.length === 7;
 };
 
-// ── MÉTODO: Marcar como completada ────────────────────────────────
 programacionSchema.methods.marcarCompletada = async function () {
   this.estado = 'COMPLETADA';
   return this.save();
 };
 
-// ── MÉTODO: Obtener todos los registros diarios ──────────────────
 programacionSchema.methods.obtenerRegistrosDiarios = function () {
   return mongoose
     .model('RegistroDiarioProgramacion')
@@ -216,24 +205,22 @@ programacionSchema.methods.obtenerRegistrosDiarios = function () {
     .sort({ fecha: 1 });
 };
 
-// ── MÉTODO: Obtener resumen de la semana ─────────────────────────
 programacionSchema.methods.obtenerResumen = async function () {
   const registros = await this.obtenerRegistrosDiarios();
-
   return {
-    programacion_id: this._id,
-    contrato: this.contrato,
-    fecha_inicial: this.fecha_inicial,
-    fecha_final: this.fecha_final,
-    semana: this.semana,
-    estado: this.estado,
-    cantidad_proyectada: this.cantidad_proyectada,
+    programacion_id:          this._id,
+    contrato:                 this.contrato,
+    fecha_inicial:            this.fecha_inicial,
+    fecha_final:              this.fecha_final,
+    semana:                   this.semana,
+    estado:                   this.estado,
+    cantidad_proyectada:      this.cantidad_proyectada,
     cantidad_ejecutada_total: this.cantidad_ejecutada_total,
-    porcentaje_cumplimiento: this.porcentaje_cumplimiento,
+    porcentaje_cumplimiento:  this.porcentaje_cumplimiento,
     registros_diarios: registros.map(r => ({
-      fecha: r.fecha,
+      fecha:              r.fecha,
       cantidad_ejecutada: r.cantidad_ejecutada,
-      estado: r.estado,
+      estado:             r.estado,
     })),
   };
 };
