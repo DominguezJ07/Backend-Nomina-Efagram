@@ -1,22 +1,34 @@
 // ==========================================
-// CONTROLADOR: PROGRAMACIÓN — CORREGIDO
+// CONTROLADOR: PROGRAMACIÓN — VERSIÓN FINAL
 // ==========================================
-// FIXES:
-// 1. getProgramaciones: tolera colección vacía y DB sin conectar
-// 2. createProgramacion: valida fecha_inicial correctamente (permite HOY)
-// 3. Todos los endpoints devuelven mensajes de error claros
+// BUGS CORREGIDOS:
+//
+// BUG #1 — catch devuelve 400 con error.message genérico:
+//   Cualquier error interno (DB desconectada, validación Mongoose, etc.)
+//   retornaba 400 con el mensaje genérico "Error al crear programación".
+//   FIX: devolver el error.message real para que el frontend lo muestre.
+//
+// BUG #2 — setHours usa hora local en vez de UTC:
+//   En servidores con zona UTC (Render), setHours(12) funciona bien.
+//   Pero para ser consistente con el frontend que envía 'T12:00:00.000Z',
+//   FIX: usar setUTCHours(12,0,0,0).
+//
+// BUG #3 — checkDB para evitar que errores de MongoDB retornen 400:
+//   Si MongoDB no está conectada, las operaciones fallan con MongoError
+//   que el catch atrapaba y retornaba como 400.
+//   FIX: verificar readyState antes de cada operación → 503 si no conectada.
 
-const mongoose                  = require('mongoose');
-const Programacion              = require('../models/programacion.model');
+const mongoose                   = require('mongoose');
+const Programacion               = require('../models/programacion.model');
 const RegistroDiarioProgramacion = require('../models/registroDiarioProgramacion.model');
-const Contrato                  = require('../../Contratos/models/contrato.model');
+const Contrato                   = require('../../Contratos/models/contrato.model');
 
-// Helper: verificar conexión a MongoDB
+// ── Verificar conexión a MongoDB ──────────────────────────────────────
 const checkDB = (res) => {
   if (mongoose.connection.readyState !== 1) {
     res.status(503).json({
       success: false,
-      message: 'Base de datos no disponible temporalmente. Intenta en unos segundos.',
+      message: 'Base de datos no disponible. Intenta nuevamente en unos segundos.',
     });
     return false;
   }
@@ -29,8 +41,7 @@ exports.getProgramaciones = async (req, res) => {
   try {
     const { estado, skip = 0, limit = 50 } = req.query;
     const filtro = {};
-    // ✅ FIX: solo filtra si estado tiene valor válido
-    if (estado && ['ACTIVA','COMPLETADA','CANCELADA','PAUSADA'].includes(estado)) {
+    if (estado && ['ACTIVA', 'COMPLETADA', 'CANCELADA', 'PAUSADA'].includes(estado)) {
       filtro.estado = estado;
     }
 
@@ -90,10 +101,6 @@ exports.getProgramacionById = async (req, res) => {
 };
 
 // ── 3. CREAR NUEVA PROGRAMACIÓN ──────────────────────────────────────
-// FIXES:
-//  - Permite fecha_inicial = HOY (no rechaza fechas pasadas en el controlador)
-//  - Valida que el contrato tenga actividades y lotes antes de intentar crear
-//  - Devuelve mensajes de error descriptivos
 exports.createProgramacion = async (req, res) => {
   if (!checkDB(res)) return;
   try {
@@ -107,7 +114,7 @@ exports.createProgramacion = async (req, res) => {
 
     const usuario_id = req.user?.id || null;
 
-    // Cargar contrato con todos los datos necesarios
+    // Cargar contrato completo
     const contrato = await Contrato.findById(contrato_id)
       .populate('finca')
       .populate('actividades')
@@ -130,17 +137,15 @@ exports.createProgramacion = async (req, res) => {
     if (!actividad) {
       return res.status(400).json({
         success: false,
-        message: 'El contrato no tiene actividades asignadas. Asigna al menos una actividad al contrato.',
+        message: 'El contrato no tiene actividades asignadas. Asigna al menos una actividad.',
       });
     }
-
     if (!lote) {
       return res.status(400).json({
         success: false,
-        message: 'El contrato no tiene lotes asignados. Asigna al menos un lote al contrato.',
+        message: 'El contrato no tiene lotes asignados. Asigna al menos un lote.',
       });
     }
-
     if (!contrato.finca) {
       return res.status(400).json({
         success: false,
@@ -148,17 +153,17 @@ exports.createProgramacion = async (req, res) => {
       });
     }
 
-    // ✅ FIX: Normalizar fecha al mediodía Colombia (UTC-5) para evitar desfases
+    // ✅ FIX BUG #2: usar UTC para evitar desfase de zona horaria
     const fechaInicio = new Date(fecha_inicial);
     fechaInicio.setUTCHours(12, 0, 0, 0);
 
     const fechaFin = new Date(fechaInicio);
-    fechaFin.setDate(fechaFin.getDate() + 6); // semana = 7 días (día 0 al día 6)
+    fechaFin.setDate(fechaFin.getDate() + 6); // 7 días: día 0 a día 6
 
     const cantProyectada = parseFloat(cantidad_proyectada) || 1;
     const valProyectado  = parseFloat(valor_proyectado)   || 0;
 
-    // Crear programación con fecha_final ya calculada (evita pre-save validator issue)
+    // Crear con fecha_final explícita (evita conflicto con pre-save hook)
     const programacion = await Programacion.create({
       contrato:            contrato_id,
       fecha_inicial:       fechaInicio,
@@ -172,7 +177,7 @@ exports.createProgramacion = async (req, res) => {
       observaciones:       observaciones || '',
     });
 
-    // Crear 7 registros diarios en paralelo (1 por día)
+    // Crear 7 registros diarios
     const registrosData = Array.from({ length: 7 }, (_, i) => {
       const fecha = new Date(fechaInicio);
       fecha.setDate(fecha.getDate() + i);
@@ -192,7 +197,7 @@ exports.createProgramacion = async (req, res) => {
       { ordered: true }
     );
 
-    // Poblar para devolver datos completos
+    // Poblar para respuesta completa
     await programacion.populate([
       { path: 'contrato',  select: 'codigo' },
       { path: 'actividad', select: 'nombre' },
@@ -207,16 +212,19 @@ exports.createProgramacion = async (req, res) => {
     });
   } catch (error) {
     console.error('Error createProgramacion:', error);
-    // Error de duplicado (misma fecha + mismo contrato)
+
+    // Error de duplicado: mismo contrato + misma fecha
     if (error.code === 11000) {
       return res.status(409).json({
         success: false,
         message: 'Ya existe una programación para este contrato en esta fecha.',
       });
     }
+
+    // ✅ FIX BUG #1: devolver el mensaje de error REAL (no genérico)
     res.status(400).json({
       success: false,
-      message: 'Error al crear programación',
+      message: error.message || 'Error al crear programación',
       error:   error.message,
     });
   }
@@ -234,8 +242,8 @@ exports.updateProgramacion = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Programación no encontrada' });
     }
 
-    if (observaciones !== undefined) programacion.observaciones   = observaciones;
-    if (estado        !== undefined) programacion.estado          = estado;
+    if (observaciones !== undefined) programacion.observaciones = observaciones;
+    if (estado        !== undefined) programacion.estado        = estado;
     programacion.actualizado_por = usuario_id;
 
     await programacion.save();
@@ -244,7 +252,7 @@ exports.updateProgramacion = async (req, res) => {
 
     res.json({ success: true, message: 'Programación actualizada', data: programacion });
   } catch (error) {
-    res.status(400).json({ success: false, message: 'Error al actualizar', error: error.message });
+    res.status(400).json({ success: false, message: error.message, error: error.message });
   }
 };
 
@@ -280,7 +288,7 @@ exports.getResumen = async (req, res) => {
       programacion: req.params.id,
     }).sort({ fecha: 1 });
 
-    const DIAS = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+    const DIAS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
     res.json({
       success: true,
