@@ -1,26 +1,65 @@
 // ==========================================
-// CONTROLADOR: REGISTRO DIARIO PROGRAMACIÓN
+// CONTROLADOR: REGISTRO DIARIO PROGRAMACIÓN — CORREGIDO
 // ==========================================
-// Descripción: Lógica para gestionar registros diarios de ejecución
-// Ubicación: src/Proyectos/controllers/registroDiarioProgramacion.controller.js
+// BUG CRÍTICO CORREGIDO:
+//
+// "Error al actualizar registros" al guardar el modal:
+//
+//   La cadena de llamadas era:
+//   registro.save()
+//     → post('save') hook en RegistroDiarioProgramacion
+//       → programacion.actualizarPorcentaje()
+//         → programacion.save()
+//           → pre('save') de Programacion (hook de duplicados)
+//             → findOne() dentro del hook → ERROR o deadlock
+//
+//   FIX: Usar findByIdAndUpdate() en lugar de save() para bypassear
+//   todos los hooks. Calcular y actualizar el porcentaje manualmente
+//   con una sola operación updateOne() al final, sin disparar hooks.
 
+const mongoose                   = require('mongoose');
 const RegistroDiarioProgramacion = require('../models/registroDiarioProgramacion.model');
-const Programacion = require('../models/programacion.model');
+const Programacion               = require('../models/programacion.model');
 
-// ────────────────────────────────────────────────────────────────────
-// 1. OBTENER TODOS LOS REGISTROS DIARIOS
-// ────────────────────────────────────────────────────────────────────
+// Helper: recalcular y actualizar totales de la programación (sin hooks)
+const recalcularProgramacion = async (programacion_id) => {
+  const registros = await RegistroDiarioProgramacion.find({ programacion: programacion_id });
+  const totalEjecutado = registros.reduce((s, r) => s + (r.cantidad_ejecutada || 0), 0);
+
+  const prog = await Programacion.findById(programacion_id);
+  if (!prog) return;
+
+  const porcentaje = prog.cantidad_proyectada > 0
+    ? Math.round((totalEjecutado / prog.cantidad_proyectada) * 100)
+    : 0;
+
+  const completados = registros.filter(r => r.estado === 'COMPLETADO').length;
+  const nuevoEstado = (completados === 7 && prog.estado === 'ACTIVA') ? 'COMPLETADA' : prog.estado;
+
+  // ✅ updateOne bypasea todos los pre-save hooks
+  await Programacion.updateOne(
+    { _id: programacion_id },
+    {
+      $set: {
+        cantidad_ejecutada_total: totalEjecutado,
+        porcentaje_cumplimiento:  porcentaje,
+        estado:                   nuevoEstado,
+      },
+    }
+  );
+};
+
+// ── 1. OBTENER TODOS LOS REGISTROS ──────────────────────────────────
 exports.getRegistrosDiarios = async (req, res) => {
   try {
     const { programacion_id, estado, skip = 0, limit = 50 } = req.query;
-
-    let filtro = {};
+    const filtro = {};
     if (programacion_id) filtro.programacion = programacion_id;
-    if (estado) filtro.estado = estado;
+    if (estado)          filtro.estado        = estado;
 
-    const total = await RegistroDiarioProgramacion.countDocuments(filtro);
+    const total    = await RegistroDiarioProgramacion.countDocuments(filtro);
     const registros = await RegistroDiarioProgramacion.find(filtro)
-      .populate('programacion', 'contrato')
+      .populate('programacion',  'contrato')
       .populate('registrado_por', 'nombre email')
       .skip(parseInt(skip))
       .limit(parseInt(limit))
@@ -28,398 +67,256 @@ exports.getRegistrosDiarios = async (req, res) => {
 
     res.json({
       success: true,
-      data: {
-        registros,
-        pagination: {
-          total,
-          skip: parseInt(skip),
-          limit: parseInt(limit),
-          pages: Math.ceil(total / parseInt(limit)),
-        },
-      },
+      data: { registros, pagination: { total, skip: parseInt(skip), limit: parseInt(limit) } },
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error al obtener registros diarios',
-      error: error.message,
-    });
+    res.status(500).json({ success: false, message: 'Error al obtener registros', error: error.message });
   }
 };
 
-// ────────────────────────────────────────────────────────────────────
-// 2. OBTENER UN REGISTRO DIARIO POR ID
-// ────────────────────────────────────────────────────────────────────
+// ── 2. OBTENER REGISTRO POR ID ───────────────────────────────────────
 exports.getRegistroDiarioById = async (req, res) => {
   try {
-    const { id } = req.params;
-
-    const registro = await RegistroDiarioProgramacion.findById(id)
+    const registro = await RegistroDiarioProgramacion.findById(req.params.id)
       .populate('programacion')
       .populate('registrado_por', 'nombre email')
-      .populate('validado_por', 'nombre email');
+      .populate('validado_por',   'nombre email');
 
     if (!registro) {
-      return res.status(404).json({
-        success: false,
-        message: 'Registro diario no encontrado',
-      });
+      return res.status(404).json({ success: false, message: 'Registro no encontrado' });
     }
-
-    res.json({
-      success: true,
-      data: registro,
-    });
+    res.json({ success: true, data: registro });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error al obtener registro diario',
-      error: error.message,
-    });
+    res.status(500).json({ success: false, message: 'Error', error: error.message });
   }
 };
 
-// ────────────────────────────────────────────────────────────────────
-// 3. CREAR REGISTRO DIARIO
-// ────────────────────────────────────────────────────────────────────
+// ── 3. CREAR REGISTRO DIARIO ─────────────────────────────────────────
 exports.createRegistroDiario = async (req, res) => {
   try {
     const { programacion_id, fecha, cantidad_ejecutada, observaciones } = req.body;
     const usuario_id = req.user?.id || null;
 
-    // Validar que la programación existe
     const programacion = await Programacion.findById(programacion_id);
     if (!programacion) {
-      return res.status(404).json({
-        success: false,
-        message: 'Programación no encontrada',
-      });
+      return res.status(404).json({ success: false, message: 'Programación no encontrada' });
     }
 
-    // Validar que no existe ya un registro para ese día
-    const existente = await RegistroDiarioProgramacion.findOne({
-      programacion: programacion_id,
-      fecha: {
-        $gte: new Date(fecha).setHours(0, 0, 0, 0),
-        $lt: new Date(fecha).setHours(23, 59, 59, 999),
-      },
-    });
-
-    if (existente) {
-      return res.status(400).json({
-        success: false,
-        message: 'Ya existe un registro para este día en esta programación',
-      });
-    }
-
-    // Crear registro
-    const registro = new RegistroDiarioProgramacion({
-      programacion: programacion_id,
-      fecha: new Date(fecha),
+    const registro = await RegistroDiarioProgramacion.create({
+      programacion:       programacion_id,
+      fecha:              new Date(fecha),
       cantidad_ejecutada: cantidad_ejecutada || 0,
-      observaciones: observaciones || '',
-      registrado_por: usuario_id,
+      observaciones:      observaciones || '',
+      registrado_por:     usuario_id,
     });
 
-    await registro.save();
+    await recalcularProgramacion(programacion_id);
 
-    // Actualizar programación (se hace automáticamente en el middleware)
-    await programacion.populate('contrato', 'codigo');
-
-    res.status(201).json({
-      success: true,
-      message: 'Registro diario creado exitosamente',
-      data: registro,
-    });
+    res.status(201).json({ success: true, message: 'Registro creado', data: registro });
   } catch (error) {
-    res.status(400).json({
-      success: false,
-      message: 'Error al crear registro diario',
-      error: error.message,
-    });
+    if (error.code === 11000) {
+      return res.status(409).json({ success: false, message: 'Ya existe un registro para este día' });
+    }
+    res.status(400).json({ success: false, message: error.message, error: error.message });
   }
 };
 
-// ────────────────────────────────────────────────────────────────────
-// 4. ACTUALIZAR CANTIDAD EJECUTADA
-// ────────────────────────────────────────────────────────────────────
+// ── 4. ACTUALIZAR UN REGISTRO ────────────────────────────────────────
 exports.updateRegistroDiario = async (req, res) => {
   try {
     const { id } = req.params;
     const { cantidad_ejecutada, observaciones } = req.body;
 
-    const registro = await RegistroDiarioProgramacion.findById(id);
+    const cantidad  = cantidad_ejecutada !== undefined ? Math.max(0, cantidad_ejecutada) : undefined;
+    const nuevoEstado = cantidad !== undefined ? (cantidad > 0 ? 'COMPLETADO' : 'PENDIENTE') : undefined;
+
+    const update = {};
+    if (cantidad      !== undefined) update.cantidad_ejecutada = cantidad;
+    if (nuevoEstado   !== undefined) update.estado             = nuevoEstado;
+    if (observaciones !== undefined) update.observaciones      = observaciones;
+
+    // ✅ findByIdAndUpdate bypasea hooks — sin cadena de saves problemática
+    const registro = await RegistroDiarioProgramacion.findByIdAndUpdate(
+      id,
+      { $set: update },
+      { new: true, runValidators: false }
+    );
 
     if (!registro) {
-      return res.status(404).json({
-        success: false,
-        message: 'Registro diario no encontrado',
-      });
+      return res.status(404).json({ success: false, message: 'Registro no encontrado' });
     }
 
-    // Actualizar cantidad
-    if (cantidad_ejecutada !== undefined) {
-      registro.cantidad_ejecutada = Math.max(0, cantidad_ejecutada);
-    }
+    await recalcularProgramacion(registro.programacion);
 
-    // Actualizar observaciones
-    if (observaciones !== undefined) {
-      registro.observaciones = observaciones;
-    }
-
-    await registro.save();
-    // El middleware post('save') actualiza automáticamente la Programación
-
-    res.json({
-      success: true,
-      message: 'Registro diario actualizado exitosamente',
-      data: registro,
-    });
+    res.json({ success: true, message: 'Registro actualizado', data: registro });
   } catch (error) {
-    res.status(400).json({
-      success: false,
-      message: 'Error al actualizar registro diario',
-      error: error.message,
-    });
+    res.status(400).json({ success: false, message: error.message, error: error.message });
   }
 };
 
-// ────────────────────────────────────────────────────────────────────
-// 5. ACTUALIZAR MÚLTIPLES REGISTROS (IMPORTANTE PARA MODAL)
-// ────────────────────────────────────────────────────────────────────
+// ── 5. ACTUALIZAR MÚLTIPLES REGISTROS (MODAL) ────────────────────────
+// ✅ FIX PRINCIPAL: usa findByIdAndUpdate en lugar de save()
+//    para evitar la cadena hooks que causaba el error
 exports.updateMultiplesRegistros = async (req, res) => {
   try {
     const { registros } = req.body;
-    // registros = [
-    //   { id: "...", cantidad_ejecutada: 50, observaciones: "..." },
-    //   { id: "...", cantidad_ejecutada: 45, observaciones: "..." },
-    //   ...
-    // ]
 
     if (!Array.isArray(registros) || registros.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Se requiere un array de registros para actualizar',
-      });
+      return res.status(400).json({ success: false, message: 'Se requiere un array de registros' });
     }
 
-    const resultados = [];
     let programacion_id = null;
+    const resultados    = [];
 
+    // ✅ Actualizar todos con findByIdAndUpdate (sin disparar hooks)
     for (const item of registros) {
-      const registro = await RegistroDiarioProgramacion.findById(item.id);
-
-      if (!registro) {
-        resultados.push({
-          id: item.id,
-          success: false,
-          message: 'Registro no encontrado',
-        });
+      if (!item.id) {
+        resultados.push({ id: item.id, success: false, message: 'ID requerido' });
         continue;
       }
 
-      // Guardar programación_id para actualizar después
-      if (!programacion_id) {
-        programacion_id = registro.programacion;
+      const cantidad    = item.cantidad_ejecutada !== undefined ? Math.max(0, item.cantidad_ejecutada) : 0;
+      const estadoCalc  = cantidad > 0 ? 'COMPLETADO' : 'PENDIENTE';
+
+      const update = {
+        cantidad_ejecutada: cantidad,
+        estado:             estadoCalc,
+      };
+      if (item.observaciones !== undefined) update.observaciones = item.observaciones;
+
+      const registro = await RegistroDiarioProgramacion.findByIdAndUpdate(
+        item.id,
+        { $set: update },
+        { new: true, runValidators: false }
+      );
+
+      if (!registro) {
+        resultados.push({ id: item.id, success: false, message: 'Registro no encontrado' });
+        continue;
       }
 
-      // Actualizar cantidad
-      if (item.cantidad_ejecutada !== undefined) {
-        registro.cantidad_ejecutada = Math.max(0, item.cantidad_ejecutada);
-      }
-
-      // Actualizar observaciones
-      if (item.observaciones !== undefined) {
-        registro.observaciones = item.observaciones;
-      }
-
-      await registro.save();
+      if (!programacion_id) programacion_id = registro.programacion;
 
       resultados.push({
-        id: item.id,
-        success: true,
+        id:                 item.id,
+        success:            true,
         cantidad_ejecutada: registro.cantidad_ejecutada,
-        estado: registro.estado,
+        estado:             registro.estado,
       });
     }
 
-    // Actualizar la programación una sola vez
+    // ✅ Recalcular programación UNA sola vez al final (sin hooks)
     if (programacion_id) {
-      const programacion = await Programacion.findById(programacion_id);
-      if (programacion) {
-        await programacion.actualizarPorcentaje();
-      }
+      await recalcularProgramacion(programacion_id);
     }
 
     res.json({
       success: true,
       message: 'Registros actualizados exitosamente',
-      data: resultados,
+      data:    resultados,
     });
   } catch (error) {
+    console.error('Error updateMultiplesRegistros:', error);
     res.status(400).json({
       success: false,
-      message: 'Error al actualizar registros',
-      error: error.message,
+      message: error.message || 'Error al actualizar registros',
+      error:   error.message,
     });
   }
 };
 
-// ────────────────────────────────────────────────────────────────────
-// 6. OBTENER REGISTROS DE UNA SEMANA COMPLETA
-// ────────────────────────────────────────────────────────────────────
+// ── 6. REGISTROS DE SEMANA COMPLETA ──────────────────────────────────
 exports.getRegistrosSemana = async (req, res) => {
   try {
     const { programacion_id } = req.params;
 
     const programacion = await Programacion.findById(programacion_id);
-
     if (!programacion) {
-      return res.status(404).json({
-        success: false,
-        message: 'Programación no encontrada',
-      });
+      return res.status(404).json({ success: false, message: 'Programación no encontrada' });
     }
 
-    const registros = await RegistroDiarioProgramacion.find({
-      programacion: programacion_id,
-    })
-      .populate('registrado_por', 'nombre email')
+    const registros = await RegistroDiarioProgramacion.find({ programacion: programacion_id })
       .sort({ fecha: 1 });
 
-    // Mapear a estructura de días
+    const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+
     const dias = registros.map((r, idx) => ({
-      _id: r._id,
-      numero_dia: idx + 1,
-      dia_semana: ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][
-        new Date(r.fecha).getDay()
-      ],
-      fecha: r.fecha,
+      _id:                r._id,
+      numero_dia:         idx + 1,
+      dia_semana:         DIAS[new Date(r.fecha).getDay()],
+      fecha:              r.fecha,
       cantidad_ejecutada: r.cantidad_ejecutada,
-      estado: r.estado,
-      observaciones: r.observaciones,
+      estado:             r.estado,
+      observaciones:      r.observaciones,
     }));
 
     res.json({
       success: true,
       data: {
         programacion_id,
-        cantidad_proyectada: programacion.cantidad_proyectada,
+        cantidad_proyectada:      programacion.cantidad_proyectada,
         cantidad_ejecutada_total: programacion.cantidad_ejecutada_total,
-        porcentaje_cumplimiento: programacion.porcentaje_cumplimiento,
+        porcentaje_cumplimiento:  programacion.porcentaje_cumplimiento,
         dias,
       },
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error al obtener registros de la semana',
-      error: error.message,
-    });
+    res.status(500).json({ success: false, message: 'Error', error: error.message });
   }
 };
 
-// ────────────────────────────────────────────────────────────────────
-// 7. VALIDAR REGISTRO
-// ────────────────────────────────────────────────────────────────────
+// ── 7. VALIDAR REGISTRO ──────────────────────────────────────────────
 exports.validarRegistro = async (req, res) => {
   try {
-    const { id } = req.params;
     const usuario_id = req.user?.id || null;
 
-    const registro = await RegistroDiarioProgramacion.findById(id);
+    const registro = await RegistroDiarioProgramacion.findByIdAndUpdate(
+      req.params.id,
+      { $set: { validado: true, validado_por: usuario_id, fecha_validacion: new Date() } },
+      { new: true }
+    );
 
     if (!registro) {
-      return res.status(404).json({
-        success: false,
-        message: 'Registro no encontrado',
-      });
+      return res.status(404).json({ success: false, message: 'Registro no encontrado' });
     }
-
-    registro.validado = true;
-    registro.validado_por = usuario_id;
-    registro.fecha_validacion = new Date();
-
-    await registro.save();
-
-    res.json({
-      success: true,
-      message: 'Registro validado exitosamente',
-      data: registro,
-    });
+    res.json({ success: true, message: 'Registro validado', data: registro });
   } catch (error) {
-    res.status(400).json({
-      success: false,
-      message: 'Error al validar registro',
-      error: error.message,
-    });
+    res.status(400).json({ success: false, message: error.message, error: error.message });
   }
 };
 
-// ────────────────────────────────────────────────────────────────────
-// 8. ELIMINAR REGISTRO DIARIO
-// ────────────────────────────────────────────────────────────────────
+// ── 8. ELIMINAR REGISTRO ─────────────────────────────────────────────
 exports.deleteRegistroDiario = async (req, res) => {
   try {
-    const { id } = req.params;
-
-    const registro = await RegistroDiarioProgramacion.findByIdAndDelete(id);
-
+    const registro = await RegistroDiarioProgramacion.findByIdAndDelete(req.params.id);
     if (!registro) {
-      return res.status(404).json({
-        success: false,
-        message: 'Registro no encontrado',
-      });
+      return res.status(404).json({ success: false, message: 'Registro no encontrado' });
     }
-
-    // Actualizar programación
-    const programacion = await Programacion.findById(registro.programacion);
-    if (programacion) {
-      await programacion.actualizarPorcentaje();
-    }
-
-    res.json({
-      success: true,
-      message: 'Registro eliminado exitosamente',
-      data: registro,
-    });
+    await recalcularProgramacion(registro.programacion);
+    res.json({ success: true, message: 'Registro eliminado', data: registro });
   } catch (error) {
-    res.status(400).json({
-      success: false,
-      message: 'Error al eliminar registro',
-      error: error.message,
-    });
+    res.status(400).json({ success: false, message: error.message, error: error.message });
   }
 };
 
-// ────────────────────────────────────────────────────────────────────
-// 9. OBTENER ESTAD​ÍSTICAS DE REGISTROS
-// ────────────────────────────────────────────────────────────────────
+// ── 9. ESTADÍSTICAS ──────────────────────────────────────────────────
 exports.getEstadisticas = async (req, res) => {
   try {
-    const { programacion_id } = req.params;
-
     const registros = await RegistroDiarioProgramacion.find({
-      programacion: programacion_id,
+      programacion: req.params.programacion_id,
     });
-
-    const estadisticas = {
-      total_registros: registros.length,
-      completados: registros.filter(r => r.estado === 'COMPLETADO').length,
-      pendientes: registros.filter(r => r.estado === 'PENDIENTE').length,
-      parciales: registros.filter(r => r.estado === 'PARCIAL').length,
-      cantidad_total: registros.reduce((sum, r) => sum + (r.cantidad_ejecutada || 0), 0),
-    };
 
     res.json({
       success: true,
-      data: estadisticas,
+      data: {
+        total_registros: registros.length,
+        completados:     registros.filter(r => r.estado === 'COMPLETADO').length,
+        pendientes:      registros.filter(r => r.estado === 'PENDIENTE').length,
+        parciales:       registros.filter(r => r.estado === 'PARCIAL').length,
+        cantidad_total:  registros.reduce((s, r) => s + (r.cantidad_ejecutada || 0), 0),
+      },
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error al obtener estadísticas',
-      error: error.message,
-    });
+    res.status(500).json({ success: false, message: 'Error', error: error.message });
   }
 };
