@@ -1,6 +1,5 @@
 const mongoose = require('mongoose');
 
-// ── Subdocumento: actividad dentro del contrato ────────────────────
 const actividadContratoSchema = new mongoose.Schema(
   {
     actividad: {
@@ -8,7 +7,6 @@ const actividadContratoSchema = new mongoose.Schema(
       ref: 'ActividadCatalogo',
       required: [true, 'La actividad es obligatoria'],
     },
-    // Asignación del subproyecto que "presta" la cantidad al contrato
     asignacion_subproyecto: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'AsignacionActividad',
@@ -42,7 +40,6 @@ const contratoSchema = new mongoose.Schema(
       trim: true,
     },
 
-    // Subproyecto al que pertenece (NUEVO)
     subproyecto: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Subproyecto',
@@ -63,7 +60,6 @@ const contratoSchema = new mongoose.Schema(
       },
     },
 
-    // Actividades con cantidad y precio (MODIFICADO - ya no es solo array de IDs)
     actividades: {
       type: [actividadContratoSchema],
       validate: {
@@ -72,10 +68,13 @@ const contratoSchema = new mongoose.Schema(
       },
     },
 
-    cuadrilla: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Cuadrilla',
-      required: [true, 'La cuadrilla es obligatoria'],
+    // ── Múltiples cuadrillas (CAMBIADO de singular a array) ────────
+    cuadrillas: {
+      type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Cuadrilla' }],
+      validate: {
+        validator: (v) => Array.isArray(v) && v.length > 0,
+        message: 'Debe asignar al menos una cuadrilla',
+      },
     },
 
     fecha_inicio: {
@@ -110,23 +109,13 @@ const contratoSchema = new mongoose.Schema(
 contratoSchema.index({ codigo: 1 }, { unique: true });
 contratoSchema.index({ subproyecto: 1 });
 contratoSchema.index({ finca: 1 });
-contratoSchema.index({ cuadrilla: 1 });
+contratoSchema.index({ cuadrillas: 1 });
 contratoSchema.index({ estado: 1 });
 contratoSchema.index({ fecha_inicio: 1 });
 
 contratoSchema.pre('save', function () {
   if (this.fecha_fin && this.fecha_fin <= this.fecha_inicio) {
     throw new Error('La fecha de fin debe ser posterior a la fecha de inicio');
-  }
-});
-
-contratoSchema.pre('save', async function () {
-  if (this.isModified('lotes') || this.isModified('finca')) {
-    const Lote = mongoose.model('Lote');
-    const lotes = await Lote.find({ _id: { $in: this.lotes }, finca: this.finca });
-    if (lotes.length !== this.lotes.length) {
-      throw new Error('Uno o más lotes no pertenecen a la finca seleccionada');
-    }
   }
 });
 
