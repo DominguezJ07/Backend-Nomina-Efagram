@@ -115,9 +115,10 @@ exports.createProgramacion = async (req, res) => {
     const usuario_id = req.user?.id || null;
 
     // Cargar contrato completo
+    // ✅ FIX BUG #4: poblar 'actividades.actividad' (path correcto del subdocumento)
     const contrato = await Contrato.findById(contrato_id)
       .populate('finca')
-      .populate('actividades')
+      .populate('actividades.actividad', 'codigo nombre unidad_medida')
       .populate('lotes');
 
     if (!contrato) {
@@ -131,10 +132,13 @@ exports.createProgramacion = async (req, res) => {
       });
     }
 
-    const actividad = contrato.actividades?.[0];
-    const lote      = contrato.lotes?.[0];
+    // ✅ FIX BUG #4: actividades es array de subdocs { actividad, cantidad, precio_unitario }
+    // El subdoc tiene _id:false → actividad._id es undefined.
+    // La referencia real es actividadSubdoc.actividad (ObjectId o doc populado)
+    const actividadSubdoc = contrato.actividades?.[0];
+    const lote            = contrato.lotes?.[0];
 
-    if (!actividad) {
+    if (!actividadSubdoc) {
       return res.status(400).json({
         success: false,
         message: 'El contrato no tiene actividades asignadas. Asigna al menos una actividad.',
@@ -153,6 +157,18 @@ exports.createProgramacion = async (req, res) => {
       });
     }
 
+    // ✅ FIX BUG #4: extraer el ObjectId correcto de la actividad
+    const actividadId =
+      actividadSubdoc.actividad?._id  // doc populado → su _id
+      ?? actividadSubdoc.actividad;   // ObjectId directo (no populado)
+
+    if (!actividadId) {
+      return res.status(400).json({
+        success: false,
+        message: 'No se pudo resolver el ID de la actividad del contrato.',
+      });
+    }
+
     // ✅ FIX BUG #2: usar UTC para evitar desfase de zona horaria
     const fechaInicio = new Date(fecha_inicial);
     fechaInicio.setUTCHours(12, 0, 0, 0);
@@ -168,7 +184,7 @@ exports.createProgramacion = async (req, res) => {
       contrato:            contrato_id,
       fecha_inicial:       fechaInicio,
       fecha_final:         fechaFin,
-      actividad:           actividad._id,
+      actividad:           actividadId,        // ✅ FIX BUG #4
       finca:               contrato.finca._id,
       lote:                lote._id,
       cantidad_proyectada: cantProyectada,
