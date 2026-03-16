@@ -119,6 +119,10 @@ const contratoRoutes = require('./Contratos/routes/contrato.routes');
 const programacionRoutes = require('./Proyectos/routes/programacion.routes');
 const registroDiarioProgramacionRoutes = require('./Proyectos/routes/registroDiarioProgramacion.routes');
 
+
+
+// Rutas de Reportes
+const reportesRoutes = require('./Reportes/routes/reportes.routes');
 // ========================================
 // RUTAS DE LA API
 // ========================================
@@ -176,6 +180,10 @@ apiRouter.use('/contratos', contratoRoutes);
 // Montar rutas de Programación
 apiRouter.use('/programaciones', programacionRoutes);
 apiRouter.use('/registros-diarios-programacion', registroDiarioProgramacionRoutes);
+
+
+// Montar rutas de Reportes
+apiRouter.use('/reportes', reportesRoutes);
 
 // Montar rutas en /api/v1
 app.use('/api/v1', apiRouter);
