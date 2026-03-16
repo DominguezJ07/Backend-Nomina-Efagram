@@ -157,15 +157,26 @@ exports.createProgramacion = async (req, res) => {
       });
     }
 
-    // ✅ FIX BUG #4: extraer el ObjectId correcto de la actividad
+    // ✅ FIX BUG #4 v2: extraer el ObjectId correcto de la actividad
+    // Casos posibles:
+    // 1. populate exitoso  → actividadSubdoc.actividad = { _id, nombre, ... }  → usar ._id
+    // 2. populate null     → actividadSubdoc.actividad = null (doc eliminado del catálogo)
+    //                        pero el ObjectId original sigue en el subdoc sin poblar
+    //                        → necesitamos el valor sin popular
+    // Para acceder al ObjectId sin popular usamos contrato.$__ (estado interno de Mongoose)
+    // o simplemente leemos el subdoc del doc original sin populate
+    const contratoRaw = await Contrato.findById(contrato_id).lean();
+    const actividadIdRaw = contratoRaw?.actividades?.[0]?.actividad;
+
     const actividadId =
-      actividadSubdoc.actividad?._id  // doc populado → su _id
-      ?? actividadSubdoc.actividad;   // ObjectId directo (no populado)
+      actividadSubdoc.actividad?._id   // doc populado → su _id
+      ?? actividadSubdoc.actividad     // ObjectId directo si no se populó
+      ?? actividadIdRaw;               // fallback: leer del doc sin populate
 
     if (!actividadId) {
       return res.status(400).json({
         success: false,
-        message: 'No se pudo resolver el ID de la actividad del contrato.',
+        message: 'No se pudo resolver el ID de la actividad del contrato. Verifica que las actividades del contrato existan en el catálogo.',
       });
     }
 
