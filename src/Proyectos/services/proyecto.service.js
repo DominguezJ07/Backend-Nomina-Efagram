@@ -58,6 +58,7 @@ class ProyectoService {
       throw new ApiError(400, 'El proyecto ya está cerrado');
     }
 
+    // Verificar que pueda cerrarse
     const validacion = await this.puedeObtenerProyecto(proyectoId);
     if (!validacion.puede) {
       throw new ApiError(400, 
@@ -74,13 +75,13 @@ class ProyectoService {
 
   /**
    * Obtener resumen de un proyecto
-   * ✅ CAMBIO: ya no hace populate('lote') porque lote es subdocumento embebido
    */
   async getResumenProyecto(proyectoId) {
     const proyecto = await this.validateProyectoExists(proyectoId);
     
     const pals = await ProyectoActividadLote.find({ proyecto: proyectoId })
-      .populate('actividad');
+      .populate('actividad')
+      .populate('lote');
 
     const totalPals = pals.length;
     const palsCumplidas = pals.filter(p => p.estado === ESTADOS_PAL.CUMPLIDA).length;

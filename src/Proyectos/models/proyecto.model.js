@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const { ESTADOS_PROYECTO, TIPOS_CONTRATO } = require('../../config/constants');
 
-// Subdocumento: Actividad por intervención
+// ✅ Subdocumento: Actividad por intervención
 const actividadSchema = new mongoose.Schema(
   {
     nombre: { type: String, required: true, trim: true },
@@ -13,23 +13,6 @@ const actividadSchema = new mongoose.Schema(
   { _id: false }
 );
 
-// ✅ NUEVO: Subdocumento de Lote embebido en el proyecto
-const loteProyectoSchema = new mongoose.Schema(
-  {
-    codigo: {
-      type: Number,
-      required: [true, 'El código del lote es obligatorio'],
-      min: [1, 'El código del lote debe ser mayor a 0'],
-    },
-    nombre: {
-      type: String,
-      required: [true, 'El nombre del lote es obligatorio'],
-      trim: true,
-    },
-  },
-  { _id: true } // _id: true para poder referenciar cada lote por su ObjectId desde el PAL
-);
-
 const proyectoSchema = new mongoose.Schema(
   {
     codigo: { type: String, required: true, unique: true, uppercase: true, trim: true },
@@ -38,16 +21,11 @@ const proyectoSchema = new mongoose.Schema(
 
     cliente: { type: mongoose.Schema.Types.ObjectId, ref: 'Cliente', required: true },
 
+    // ✅ NUEVO: Zona territorial del proyecto
     zona: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Zona',
       default: null,
-    },
-
-    // ✅ NUEVO: Lotes propios del proyecto (no dependen de la jerarquía territorial)
-    lotes: {
-      type: [loteProyectoSchema],
-      default: [],
     },
 
     fecha_inicio: { type: Date, required: true },
@@ -94,17 +72,6 @@ const proyectoSchema = new mongoose.Schema(
   },
   { timestamps: true, versionKey: false }
 );
-
-// ✅ Validación: códigos de lotes únicos dentro del mismo proyecto
-proyectoSchema.pre('save', function () {
-  if (this.lotes && this.lotes.length > 0) {
-    const codigos = this.lotes.map((l) => l.codigo);
-    const codigosUnicos = new Set(codigos);
-    if (codigosUnicos.size !== codigos.length) {
-      throw new Error('Los códigos de los lotes deben ser únicos dentro del proyecto');
-    }
-  }
-});
 
 function calcTotales(acts = []) {
   const cantidadTotal = acts.reduce((s, a) => s + (Number(a.cantidad) || 0), 0);

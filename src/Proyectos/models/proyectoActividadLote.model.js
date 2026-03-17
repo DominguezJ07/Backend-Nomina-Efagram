@@ -14,26 +14,11 @@ const proyectoActividadLoteSchema = new mongoose.Schema({
     ref: 'Proyecto',
     required: [true, 'El proyecto es obligatorio']
   },
-
-  // ✅ CAMBIO: lote_id ahora referencia el _id del subdocumento embebido
-  //    dentro de proyecto.lotes, NO la colección territorial Lote.
-  //    Se guarda el ObjectId del subdocumento para poder buscarlo,
-  //    y adicionalmente se desnormaliza el código y nombre para consultas rápidas.
-  lote_id: {
+  lote: {
     type: mongoose.Schema.Types.ObjectId,
-    required: [true, 'El lote es obligatorio'],
+    ref: 'Lote',
+    required: [true, 'El lote es obligatorio']
   },
-  lote_codigo: {
-    type: Number,
-    required: [true, 'El código del lote es obligatorio'],
-    min: [1, 'El código del lote debe ser mayor a 0'],
-  },
-  lote_nombre: {
-    type: String,
-    required: [true, 'El nombre del lote es obligatorio'],
-    trim: true,
-  },
-
   actividad: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'ActividadCatalogo',
@@ -93,7 +78,7 @@ const proyectoActividadLoteSchema = new mongoose.Schema({
 
 // Índices
 proyectoActividadLoteSchema.index({ proyecto: 1 });
-proyectoActividadLoteSchema.index({ lote_id: 1 });
+proyectoActividadLoteSchema.index({ lote: 1 });
 proyectoActividadLoteSchema.index({ actividad: 1 });
 proyectoActividadLoteSchema.index({ estado: 1 });
 proyectoActividadLoteSchema.index({ codigo: 1 });
@@ -115,6 +100,7 @@ proyectoActividadLoteSchema.post('init', function(doc) {
 
 // VALIDACIÓN: No marcar como CUMPLIDA si no tiene meta
 proyectoActividadLoteSchema.pre('save', function() {
+  // Solo validar si el estado está cambiando a CUMPLIDA
   if (this.isModified('estado') && this.estado === ESTADOS_PAL.CUMPLIDA) {
     if (!this.meta_minima || this.meta_minima <= 0) {
       throw new Error('No se puede marcar como CUMPLIDA sin tener una meta mínima definida');
