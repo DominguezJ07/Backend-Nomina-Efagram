@@ -25,17 +25,24 @@ const createContratoValidation = [
   body('codigo').notEmpty().withMessage('El código es obligatorio').trim().toUpperCase(),
   body('subproyecto').notEmpty().isMongoId().withMessage('ID de subproyecto inválido'),
   body('finca').notEmpty().isMongoId().withMessage('ID de finca inválido'),
+  // ✅ CAMBIO: lotes ahora son objetos embebidos { nombre }, no MongoIds
   body('lotes')
-    .isArray({ min: 1 }).withMessage('Debe seleccionar al menos un lote')
-    .custom((v) => v.every((id) => /^[0-9a-fA-F]{24}$/.test(id)))
-    .withMessage('Uno o más IDs de lote son inválidos'),
+    .isArray({ min: 1 }).withMessage('Debe agregar al menos un lote')
+    .custom((v) => v.every((l) => l && typeof l === 'object' && typeof l.nombre === 'string' && l.nombre.trim().length > 0))
+    .withMessage('Cada lote debe tener un nombre válido'),
+  body('lotes.*.nombre')
+    .notEmpty().withMessage('El nombre del lote es obligatorio')
+    .isString().withMessage('El nombre del lote debe ser texto')
+    .trim(),
   ...actividadItemValidation,
   body('cuadrillas')
     .isArray({ min: 1 }).withMessage('Debe asignar al menos una cuadrilla')
     .custom((v) => v.every((id) => /^[0-9a-fA-F]{24}$/.test(id)))
     .withMessage('Uno o más IDs de cuadrilla son inválidos'),
   body('fecha_inicio').notEmpty().isISO8601().withMessage('Fecha de inicio inválida'),
-  body('fecha_fin').optional({ nullable: true }).isISO8601().withMessage('Fecha de fin inválida'),
+  body('fecha_fin')
+    .optional({ nullable: true, checkFalsy: true })
+    .isISO8601().withMessage('Fecha de fin inválida'),
   body('observaciones').optional().trim(),
   validateRequest,
 ];
@@ -44,8 +51,12 @@ const updateContratoValidation = [
   body('codigo').optional().trim().toUpperCase(),
   body('subproyecto').optional().isMongoId(),
   body('finca').optional().isMongoId(),
-  body('lotes').optional().isArray({ min: 1 })
-    .custom((v) => v.every((id) => /^[0-9a-fA-F]{24}$/.test(id))),
+  // ✅ CAMBIO: lotes ahora son objetos embebidos { nombre }, no MongoIds
+  body('lotes')
+    .optional()
+    .isArray({ min: 1 })
+    .custom((v) => v.every((l) => l && typeof l === 'object' && typeof l.nombre === 'string' && l.nombre.trim().length > 0))
+    .withMessage('Cada lote debe tener un nombre válido'),
   body('actividades').optional().isArray({ min: 1 }),
   body('actividades.*.actividad').optional().isMongoId(),
   body('actividades.*.cantidad').optional().isFloat({ gt: 0 }),
@@ -53,7 +64,9 @@ const updateContratoValidation = [
   body('cuadrillas').optional().isArray({ min: 1 })
     .custom((v) => v.every((id) => /^[0-9a-fA-F]{24}$/.test(id))),
   body('fecha_inicio').optional().isISO8601(),
-  body('fecha_fin').optional({ nullable: true }).isISO8601(),
+  body('fecha_fin')
+    .optional({ nullable: true, checkFalsy: true })
+    .isISO8601().withMessage('Fecha de fin inválida'),
   body('estado').optional().isIn(['BORRADOR', 'ACTIVO', 'CERRADO', 'CANCELADO']),
   body('observaciones').optional().trim(),
   validateRequest,
