@@ -6,7 +6,7 @@ const { asyncHandler, ApiError } = require('../../middlewares/errorHandler');
 const POPULATE_CONTRATO = [
   { path: 'subproyecto', select: 'codigo nombre estado' },
   { path: 'finca', select: 'codigo nombre' },
-  { path: 'lotes', select: 'codigo nombre area' },
+  // ✅ CAMBIO: lotes ya no se populan porque son subdocumentos embebidos
   { path: 'actividades.actividad', select: 'codigo nombre categoria unidad_medida' },
   {
     path: 'cuadrillas',
@@ -50,7 +50,10 @@ const createContrato = asyncHandler(async (req, res) => {
   await contratoService.validateCodigoUnico(codigo);
   await contratoService.validateSubproyecto(subproyecto);
   await contratoService.validateFinca(finca);
-  await contratoService.validateLotes(lotes, finca);
+
+  // ✅ CAMBIO: normalizarLotes en lugar de validateLotes (genera códigos correlativos)
+  const lotesNormalizados = contratoService.normalizarLotes(lotes);
+
   const actividadesValidadas = await contratoService.validateActividadesConCantidad(actividades, subproyecto);
   await contratoService.validateCuadrillas(cuadrillas);
 
@@ -65,7 +68,7 @@ const createContrato = asyncHandler(async (req, res) => {
     codigo,
     subproyecto,
     finca,
-    lotes,
+    lotes: lotesNormalizados, // ✅ subdocumentos embebidos
     actividades: actividadesDoc,
     cuadrillas,
     fecha_inicio,
@@ -107,9 +110,9 @@ const updateContrato = asyncHandler(async (req, res) => {
     contrato.finca = finca;
   }
 
+  // ✅ CAMBIO: normalizarLotes en lugar de validateLotes
   if (lotes) {
-    await contratoService.validateLotes(lotes, fincaFinal);
-    contrato.lotes = lotes;
+    contrato.lotes = contratoService.normalizarLotes(lotes);
   }
 
   if (actividades) {

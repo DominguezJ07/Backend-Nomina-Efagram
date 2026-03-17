@@ -30,6 +30,23 @@ actividadContratoSchema.virtual('valor_total').get(function () {
   return (this.precio_unitario || 0) * (this.cantidad || 0);
 });
 
+// ✅ NUEVO: Subdocumento de lote embebido en el contrato
+const loteContratoSchema = new mongoose.Schema(
+  {
+    codigo: {
+      type: Number,
+      required: [true, 'El código del lote es obligatorio'],
+      min: [1, 'El código del lote debe ser mayor a 0'],
+    },
+    nombre: {
+      type: String,
+      required: [true, 'El nombre del lote es obligatorio'],
+      trim: true,
+    },
+  },
+  { _id: true } // _id: true para poder referenciar cada lote por su ObjectId
+);
+
 const contratoSchema = new mongoose.Schema(
   {
     codigo: {
@@ -52,11 +69,12 @@ const contratoSchema = new mongoose.Schema(
       required: [true, 'La finca es obligatoria'],
     },
 
+    // ✅ CAMBIO: lotes ahora son subdocumentos embebidos, no referencias a la colección Lote territorial
     lotes: {
-      type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Lote' }],
+      type: [loteContratoSchema],
       validate: {
         validator: (v) => Array.isArray(v) && v.length > 0,
-        message: 'Debe seleccionar al menos un lote',
+        message: 'Debe agregar al menos un lote',
       },
     },
 
@@ -68,7 +86,6 @@ const contratoSchema = new mongoose.Schema(
       },
     },
 
-    // ── Múltiples cuadrillas (CAMBIADO de singular a array) ────────
     cuadrillas: {
       type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Cuadrilla' }],
       validate: {
@@ -106,18 +123,29 @@ const contratoSchema = new mongoose.Schema(
   { timestamps: true, versionKey: false }
 );
 
-contratoSchema.index({ codigo: 1 }, { unique: true });
-contratoSchema.index({ subproyecto: 1 });
-contratoSchema.index({ finca: 1 });
-contratoSchema.index({ cuadrillas: 1 });
-contratoSchema.index({ estado: 1 });
-contratoSchema.index({ fecha_inicio: 1 });
+// ✅ Validación: códigos de lotes únicos dentro del mismo contrato
+contratoSchema.pre('save', function () {
+  if (this.lotes && this.lotes.length > 0) {
+    const codigos = this.lotes.map((l) => l.codigo);
+    const codigosUnicos = new Set(codigos);
+    if (codigosUnicos.size !== codigos.length) {
+      throw new Error('Los códigos de los lotes deben ser únicos dentro del contrato');
+    }
+  }
+});
 
 contratoSchema.pre('save', function () {
   if (this.fecha_fin && this.fecha_fin <= this.fecha_inicio) {
     throw new Error('La fecha de fin debe ser posterior a la fecha de inicio');
   }
 });
+
+contratoSchema.index({ codigo: 1 }, { unique: true });
+contratoSchema.index({ subproyecto: 1 });
+contratoSchema.index({ finca: 1 });
+contratoSchema.index({ cuadrillas: 1 });
+contratoSchema.index({ estado: 1 });
+contratoSchema.index({ fecha_inicio: 1 });
 
 contratoSchema.virtual('valor_total').get(function () {
   return (this.actividades || []).reduce(

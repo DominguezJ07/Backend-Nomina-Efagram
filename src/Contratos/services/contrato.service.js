@@ -1,6 +1,5 @@
 const Contrato            = require('../models/contrato.model');
 const Finca               = require('../../Territorial/models/finca.model');
-const Lote                = require('../../Territorial/models/lote.model');
 const Cuadrilla           = require('../../Personal/models/cuadrilla.model');
 const ActividadCatalogo   = require('../../Proyectos/models/actividadCatalogo.model');
 const AsignacionActividad = require('../../Proyectos/models/asignacionActividad.model');
@@ -21,13 +20,22 @@ const validateFinca = async (fincaId) => {
   return finca;
 };
 
-const validateLotes = async (loteIds, fincaId) => {
-  if (!loteIds || loteIds.length === 0)
-    throw new ApiError(400, 'Debe seleccionar al menos un lote');
-  const lotes = await Lote.find({ _id: { $in: loteIds }, finca: fincaId, activo: true });
-  if (lotes.length !== loteIds.length)
-    throw new ApiError(400, 'Uno o más lotes no existen, están inactivos o no pertenecen a la finca');
-  return lotes;
+// ✅ NUEVO: Normaliza los lotes embebidos generando códigos correlativos automáticos
+// Recibe: [{ nombre: 'Lote Norte' }, { nombre: 'Lote Sur' }]
+// Retorna: [{ codigo: 1, nombre: 'Lote Norte' }, { codigo: 2, nombre: 'Lote Sur' }]
+const normalizarLotes = (lotes) => {
+  if (!lotes || lotes.length === 0)
+    throw new ApiError(400, 'Debe agregar al menos un lote');
+
+  lotes.forEach((lote, idx) => {
+    if (!lote.nombre || !lote.nombre.toString().trim())
+      throw new ApiError(400, `El lote en la posición ${idx + 1} debe tener un nombre`);
+  });
+
+  return lotes.map((lote, idx) => ({
+    codigo: idx + 1,
+    nombre: lote.nombre.toString().trim(),
+  }));
 };
 
 const validateActividadesConCantidad = async (actividades, subproyectoId) => {
@@ -133,7 +141,6 @@ const validateActividadesConCantidadUpdate = async (actividades, subproyectoId, 
   return actividades;
 };
 
-// ── Valida array de cuadrillas ────────────────────────────────────
 const validateCuadrillas = async (cuadrillaIds) => {
   if (!cuadrillaIds || cuadrillaIds.length === 0)
     throw new ApiError(400, 'Debe asignar al menos una cuadrilla');
@@ -165,7 +172,7 @@ const validateCodigoUnico = async (codigo, excludeId = null) => {
 module.exports = {
   validateSubproyecto,
   validateFinca,
-  validateLotes,
+  normalizarLotes,        // ✅ exportada en lugar de validateLotes
   validateActividadesConCantidad,
   validateActividadesConCantidadUpdate,
   validateCuadrillas,
