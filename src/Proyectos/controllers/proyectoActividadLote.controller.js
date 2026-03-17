@@ -1,8 +1,8 @@
 const ProyectoActividadLote = require('../models/proyectoActividadLote.model');
+const Proyecto = require('../models/proyecto.model');
 const palService = require('../services/pal.service');
 const metaValidationService = require('../services/metaValidation.service');
 const proyectoService = require('../services/proyecto.service');
-const territorialService = require('../../Territorial/services/territorial.service');
 const { asyncHandler, ApiError } = require('../../middlewares/errorHandler');
 const { ESTADOS_PAL } = require('../../config/constants');
 
@@ -16,14 +16,13 @@ const getPALs = asyncHandler(async (req, res) => {
 
   const filter = {};
   if (proyecto) filter.proyecto = proyecto;
-  if (lote) filter.lote = lote;
+  if (lote) filter.lote_id = lote; // ✅ campo renombrado
   if (actividad) filter.actividad = actividad;
   if (estado) filter.estado = estado;
   if (supervisor) filter.supervisor_asignado = supervisor;
 
   const pals = await ProyectoActividadLote.find(filter)
     .populate('proyecto')
-    .populate('lote')
     .populate('actividad')
     .populate('supervisor_asignado')
     .sort({ fecha_inicio_planificada: -1 });
@@ -43,7 +42,6 @@ const getPALs = asyncHandler(async (req, res) => {
 const getPAL = asyncHandler(async (req, res) => {
   const pal = await ProyectoActividadLote.findById(req.params.id)
     .populate('proyecto')
-    .populate('lote')
     .populate('actividad')
     .populate('supervisor_asignado');
 
@@ -63,20 +61,46 @@ const getPAL = asyncHandler(async (req, res) => {
  * @access  Private (Admin, Jefe)
  */
 const createPAL = asyncHandler(async (req, res) => {
-  // Validar que el proyecto exista
-  await proyectoService.validateProyectoExists(req.body.proyecto);
+  const { proyecto: proyectoId, lote_id, ...resto } = req.body;
 
-  // Validar que el lote exista
-  await territorialService.validateLoteExists(req.body.lote);
+  // Validar que el proyecto exista
+  const proyecto = await Proyecto.findById(proyectoId);
+  if (!proyecto) {
+    throw new ApiError(404, 'Proyecto no encontrado');
+  }
+
+  // ✅ Validar que el lote_id pertenezca a los lotes embebidos del proyecto
+  if (!lote_id) {
+    throw new ApiError(400, 'El lote es obligatorio');
+  }
+
+  const loteEncontrado = proyecto.lotes.find(
+    (l) => l._id.toString() === lote_id.toString()
+  );
+
+  if (!loteEncontrado) {
+    throw new ApiError(
+      400,
+      'El lote indicado no pertenece a este proyecto. Verifica los lotes disponibles.'
+    );
+  }
 
   // Validar fechas
   metaValidationService.validateFechasPAL(
-    req.body.fecha_inicio_planificada,
-    req.body.fecha_fin_planificada
+    resto.fecha_inicio_planificada,
+    resto.fecha_fin_planificada
   );
 
-  const pal = await ProyectoActividadLote.create(req.body);
-  await pal.populate(['proyecto', 'lote', 'actividad', 'supervisor_asignado']);
+  // Construir el PAL con los datos desnormalizados del lote
+  const pal = await ProyectoActividadLote.create({
+    ...resto,
+    proyecto: proyectoId,
+    lote_id: loteEncontrado._id,
+    lote_codigo: loteEncontrado.codigo,
+    lote_nombre: loteEncontrado.nombre,
+  });
+
+  await pal.populate(['proyecto', 'actividad', 'supervisor_asignado']);
 
   res.status(201).json({
     success: true,
@@ -98,11 +122,33 @@ const updatePAL = asyncHandler(async (req, res) => {
     metaValidationService.validateMetaIncremento(pal.meta_minima, req.body.meta_minima);
   }
 
+  // ✅ Si se cambia el lote, revalidar que pertenezca al proyecto
+  if (req.body.lote_id) {
+    const proyecto = await Proyecto.findById(pal.proyecto);
+    if (!proyecto) {
+      throw new ApiError(404, 'Proyecto del PAL no encontrado');
+    }
+
+    const loteEncontrado = proyecto.lotes.find(
+      (l) => l._id.toString() === req.body.lote_id.toString()
+    );
+
+    if (!loteEncontrado) {
+      throw new ApiError(
+        400,
+        'El lote indicado no pertenece a este proyecto.'
+      );
+    }
+
+    req.body.lote_codigo = loteEncontrado.codigo;
+    req.body.lote_nombre = loteEncontrado.nombre;
+  }
+
   pal = await ProyectoActividadLote.findByIdAndUpdate(
     req.params.id,
     req.body,
     { new: true, runValidators: true }
-  ).populate(['proyecto', 'lote', 'actividad', 'supervisor_asignado']);
+  ).populate(['proyecto', 'actividad', 'supervisor_asignado']);
 
   res.status(200).json({
     success: true,
@@ -193,7 +239,6 @@ const getPrecioVigente = asyncHandler(async (req, res) => {
 const marcarCumplida = asyncHandler(async (req, res) => {
   const pal = await palService.validatePALExists(req.params.id);
 
-  // Validar que cumplió la meta
   await metaValidationService.validatePuedeCumplir(pal);
 
   pal.estado = ESTADOS_PAL.CUMPLIDA;

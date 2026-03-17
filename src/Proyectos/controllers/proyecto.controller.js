@@ -64,7 +64,6 @@ const getResumenProyecto = asyncHandler(async (req, res) => {
     throw new ApiError(404, 'Proyecto no encontrado');
   }
   
-  // Aquí puedes agregar lógica adicional para el resumen
   res.status(200).json({
     success: true,
     data: proyecto
@@ -88,7 +87,8 @@ const createProyecto = asyncHandler(async (req, res) => {
     tipo_contrato,
     descripcion,
     avance,
-    actividades_por_intervencion
+    actividades_por_intervencion,
+    lotes, // ✅ NUEVO
   } = req.body;
 
   // =========================
@@ -111,6 +111,25 @@ const createProyecto = asyncHandler(async (req, res) => {
   }
 
   // =========================
+  // ✅ NUEVO: Validar y normalizar lotes
+  // =========================
+  let lotesNormalizados = [];
+  if (lotes && Array.isArray(lotes) && lotes.length > 0) {
+    // Validar que cada lote tenga nombre
+    lotes.forEach((lote, idx) => {
+      if (!lote.nombre || !lote.nombre.toString().trim()) {
+        throw new ApiError(400, `El lote en la posición ${idx + 1} debe tener un nombre`);
+      }
+    });
+
+    // Autogenerar códigos numéricos correlativos (1, 2, 3...)
+    lotesNormalizados = lotes.map((lote, idx) => ({
+      codigo: idx + 1,
+      nombre: lote.nombre.toString().trim(),
+    }));
+  }
+
+  // =========================
   // Normalizar actividades
   // =========================
   const actividadesNormalizadas = {
@@ -119,7 +138,6 @@ const createProyecto = asyncHandler(async (req, res) => {
     establecimiento: actividades_por_intervencion?.establecimiento || [],
   };
 
-  // Validar estructura de actividades
   Object.keys(actividadesNormalizadas).forEach((tipo) => {
     actividadesNormalizadas[tipo] = actividadesNormalizadas[tipo].map((act) => ({
       nombre: act.nombre?.trim() || '',
@@ -145,6 +163,7 @@ const createProyecto = asyncHandler(async (req, res) => {
     descripcion,
     avance: Number(avance) || 0,
     actividades_por_intervencion: actividadesNormalizadas,
+    lotes: lotesNormalizados, // ✅ NUEVO
   });
 
   await proyecto.populate(['cliente', 'responsable', 'zona']);
@@ -181,6 +200,20 @@ const updateProyecto = asyncHandler(async (req, res) => {
     };
   }
 
+  // ✅ NUEVO: Si vienen lotes, recalcular códigos correlativos
+  if (req.body.lotes && Array.isArray(req.body.lotes)) {
+    req.body.lotes.forEach((lote, idx) => {
+      if (!lote.nombre || !lote.nombre.toString().trim()) {
+        throw new ApiError(400, `El lote en la posición ${idx + 1} debe tener un nombre`);
+      }
+    });
+
+    proyecto.lotes = req.body.lotes.map((lote, idx) => ({
+      codigo: idx + 1,
+      nombre: lote.nombre.toString().trim(),
+    }));
+  }
+
   await proyecto.save();
   await proyecto.populate(['cliente', 'responsable', 'zona']);
 
@@ -204,7 +237,6 @@ const deleteProyecto = asyncHandler(async (req, res) => {
     throw new ApiError(404, 'Proyecto no encontrado');
   }
   
-  // Validar que el proyecto no tenga actividades asociadas
   const PAL = require('../models/proyectoActividadLote.model');
   const tieneActividades = await PAL.countDocuments({ proyecto: req.params.id });
   
@@ -267,7 +299,7 @@ const puedeObtenerProyecto = asyncHandler(async (req, res) => {
 });
 
 // ====================================================================
-// NUEVAS FUNCIONES DE PRESUPUESTO ANUAL
+// FUNCIONES DE PRESUPUESTO ANUAL
 // ====================================================================
 
 /**
@@ -285,18 +317,15 @@ const actualizarPresupuestoAnual = asyncHandler(async (req, res) => {
     presupuesto_por_intervencion
   } = req.body;
 
-  // Validar que el proyecto exista
   const proyecto = await Proyecto.findById(id);
   if (!proyecto) {
     throw new ApiError(404, 'Proyecto no encontrado');
   }
 
-  // Validar año fiscal
   if (!año_fiscal || año_fiscal < 2020 || año_fiscal > 2100) {
     throw new ApiError(400, 'El año fiscal es inválido');
   }
 
-  // Validar que cantidad y monto sean positivos
   if (cantidad_actividades_planeadas < 0) {
     throw new ApiError(400, 'La cantidad de actividades no puede ser negativa');
   }
@@ -304,7 +333,6 @@ const actualizarPresupuestoAnual = asyncHandler(async (req, res) => {
     throw new ApiError(400, 'El monto presupuestado no puede ser negativo');
   }
 
-  // Validar desglose por intervención (opcional)
   if (presupuesto_por_intervencion) {
     const totalActividades = 
       (presupuesto_por_intervencion.mantenimiento?.cantidad_actividades || 0) +
@@ -316,7 +344,6 @@ const actualizarPresupuestoAnual = asyncHandler(async (req, res) => {
       (presupuesto_por_intervencion.no_programadas?.monto_presupuestado || 0) +
       (presupuesto_por_intervencion.establecimiento?.monto_presupuestado || 0);
     
-    // Validar que el desglose no exceda el total
     if (totalActividades > cantidad_actividades_planeadas) {
       throw new ApiError(
         400, 
@@ -332,22 +359,19 @@ const actualizarPresupuestoAnual = asyncHandler(async (req, res) => {
     }
   }
 
-  // Buscar la persona asociada al usuario (para aprobado_por)
-const Persona = require('../../Personal/models/persona.model');
-let persona = await Persona.findOne({ usuario: req.user.id });
+  const Persona = require('../../Personal/models/persona.model');
+  let persona = await Persona.findOne({ usuario: req.user.id });
 
-// Si no hay persona asociada, usar la primera disponible
-if (!persona) {
-  persona = await Persona.findOne();
   if (!persona) {
-    throw new ApiError(
-      400, 
-      'No hay personas registradas en el sistema. Contacta al administrador.'
-    );
+    persona = await Persona.findOne();
+    if (!persona) {
+      throw new ApiError(
+        400, 
+        'No hay personas registradas en el sistema. Contacta al administrador.'
+      );
+    }
   }
-}
 
-  // Actualizar presupuesto anual
   proyecto.presupuesto_anual = {
     cantidad_actividades_planeadas: cantidad_actividades_planeadas || 0,
     monto_presupuestado: monto_presupuestado || 0,
@@ -357,7 +381,6 @@ if (!persona) {
     observaciones_presupuesto
   };
 
-  // Si viene desglose por intervención, actualizarlo
   if (presupuesto_por_intervencion) {
     proyecto.presupuesto_por_intervencion = {
       mantenimiento: {
@@ -376,8 +399,6 @@ if (!persona) {
   }
 
   await proyecto.save();
-
-  // Poblar aprobado_por
   await proyecto.populate('presupuesto_anual.aprobado_por');
 
   res.status(200).json({
@@ -402,7 +423,6 @@ const obtenerPresupuestoAnual = asyncHandler(async (req, res) => {
     throw new ApiError(404, 'Proyecto no encontrado');
   }
 
-  // Si no tiene presupuesto configurado, devolver estructura vacía
   if (!proyecto.presupuesto_anual || !proyecto.presupuesto_anual.año_fiscal) {
     return res.status(200).json({
       success: true,
@@ -415,29 +435,24 @@ const obtenerPresupuestoAnual = asyncHandler(async (req, res) => {
     });
   }
 
-  // Calcular actividades ejecutadas (consulta a PAL)
   const PAL = require('../models/proyectoActividadLote.model');
   const actividadesEjecutadas = await PAL.countDocuments({
     proyecto: id,
     estado: { $in: ['CUMPLIDA', 'EN_EJECUCION'] }
   });
 
-  // Calcular monto ejecutado (consulta a precios negociados y cantidad ejecutada)
   const PrecioNegociado = require('../models/precioNegociado.model');
   
-  // Obtener todos los PAL del proyecto con sus precios activos
   const palsConPrecios = await PAL.find({ proyecto: id })
     .select('_id cantidad_ejecutada');
   
   const palIds = palsConPrecios.map(p => p._id);
   
-  // Obtener precios activos para esos PALs
   const precios = await PrecioNegociado.find({
     proyecto_actividad_lote: { $in: palIds },
     activo: true
   }).select('proyecto_actividad_lote precio_acordado');
   
-  // Calcular monto ejecutado
   let montoEjecutado = 0;
   palsConPrecios.forEach(pal => {
     const precio = precios.find(p => 
@@ -449,7 +464,6 @@ const obtenerPresupuestoAnual = asyncHandler(async (req, res) => {
     }
   });
 
-  // Construir respuesta con métricas
   const presupuesto = {
     configurado: true,
     presupuesto_anual: proyecto.presupuesto_anual.toObject(),
@@ -499,7 +513,6 @@ const obtenerResumenPresupuestos = asyncHandler(async (req, res) => {
     .populate('presupuesto_anual.aprobado_por', 'nombres apellidos')
     .sort({ 'presupuesto_anual.año_fiscal': -1, codigo: 1 });
 
-  // Calcular totales
   const totales = proyectos.reduce((acc, proyecto) => {
     if (proyecto.presupuesto_anual?.año_fiscal) {
       acc.cantidad_actividades += proyecto.presupuesto_anual.cantidad_actividades_planeadas || 0;
@@ -521,16 +534,14 @@ const obtenerResumenPresupuestos = asyncHandler(async (req, res) => {
 // ====================================================================
 
 module.exports = {
-  // Funciones existentes
   getProyectos,
   getProyecto,
   getResumenProyecto,
   createProyecto,
   updateProyecto,
-  deleteProyecto, // ⬅️ NUEVA FUNCIÓN
+  deleteProyecto,
   cerrarProyecto,
   puedeObtenerProyecto,
-  // Nuevas funciones de presupuesto
   actualizarPresupuestoAnual,
   obtenerPresupuestoAnual,
   obtenerResumenPresupuestos
