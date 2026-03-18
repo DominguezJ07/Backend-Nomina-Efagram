@@ -97,8 +97,9 @@ const novedadRoutes = require('./Ejecucion/routes/novedad.routes');
 const semanaOperativaRoutes = require('./ControlSemanal/routes/semanaOperativa.routes');
 
 // Rutas de Catálogos
-const procesoRoutes     = require('./Catalogos/routes/proceso.routes');
+const procesoRoutes      = require('./Catalogos/routes/proceso.routes');
 const intervencionRoutes = require('./Catalogos/routes/intervencion.routes');
+const cargoRoutes        = require('./Catalogos/routes/cargo.routes');
 
 // Rutas de Control Semanal
 const consolidadoRoutes = require('./ControlSemanal/routes/consolidado.routes');
@@ -106,10 +107,9 @@ const indicadorRoutes = require('./ControlSemanal/routes/indicador.routes');
 const alertaRoutes = require('./ControlSemanal/routes/alerta.routes');
 const controlSemanalRoutes = require('./ControlSemanal/routes/controlSemanal.routes');
 
-
-// ── 1. IMPORTS (agregar junto a los otros requires de Proyectos) ──
-const actividadProyectoRoutes  = require('./Proyectos/routes/actividadProyecto.routes');
-const subproyectoRoutes        = require('./Proyectos/routes/subproyecto.routes');
+// Rutas adicionales de Proyectos
+const actividadProyectoRoutes   = require('./Proyectos/routes/actividadProyecto.routes');
+const subproyectoRoutes         = require('./Proyectos/routes/subproyecto.routes');
 const asignacionActividadRoutes = require('./Proyectos/routes/asignacionActividad.routes');
 
 // Rutas de Contratos
@@ -119,34 +119,32 @@ const contratoRoutes = require('./Contratos/routes/contrato.routes');
 const programacionRoutes = require('./Proyectos/routes/programacion.routes');
 const registroDiarioProgramacionRoutes = require('./Proyectos/routes/registroDiarioProgramacion.routes');
 
-
-
 // Rutas de Reportes
 const reportesRoutes = require('./Reportes/routes/reportes.routes');
+
 // ========================================
 // RUTAS DE LA API
 // ========================================
 
-// Rutas base API v1
 const apiRouter = express.Router();
 
-// Montar rutas de Autenticación
+// Autenticación
 apiRouter.use('/auth', authRoutes);
 
-// Montar rutas Territoriales
+// Territorial
 apiRouter.use('/zonas', zonaRoutes);
 apiRouter.use('/nucleos', nucleoRoutes);
 apiRouter.use('/fincas', fincaRoutes);
 apiRouter.use('/lotes', loteRoutes);
 
-// Montar rutas de Personal
+// Personal
 apiRouter.use('/personas', personaRoutes);
 apiRouter.use('/roles', rolRoutes);
 apiRouter.use('/persona-roles', personaRolRoutes);
 apiRouter.use('/cuadrillas', cuadrillaRoutes);
 apiRouter.use('/asignaciones-supervisor', asignacionRoutes);
 
-// Montar rutas de Proyectos
+// Proyectos
 apiRouter.use('/clientes', clienteRoutes);
 apiRouter.use('/proyectos', proyectoRoutes);
 apiRouter.use('/actividades', actividadRoutes);
@@ -154,48 +152,45 @@ apiRouter.use('/pals', palRoutes);
 apiRouter.use('/precios-base', precioBaseRoutes);
 apiRouter.use('/precios-negociados', precioNegociadoRoutes);
 
-// Montar rutas de Ejecución
+// Ejecución
 apiRouter.use('/registros-diarios', registroDiarioRoutes);
 apiRouter.use('/novedades', novedadRoutes);
 apiRouter.use('/semanas', semanaOperativaRoutes);
 
-// Montar rutas de Catálogos
+// Catálogos
 apiRouter.use('/procesos',      procesoRoutes);
 apiRouter.use('/intervenciones', intervencionRoutes);
+apiRouter.use('/cargos',        cargoRoutes);
 
-// Montar rutas de Control Semanal
+// Control Semanal
 apiRouter.use('/consolidados', consolidadoRoutes);
 apiRouter.use('/indicadores', indicadorRoutes);
 apiRouter.use('/alertas', alertaRoutes);
 apiRouter.use('/control-semanal', controlSemanalRoutes);
 
-// ── 2. MONTAJE (agregar dentro del bloque apiRouter.use(...)) ──
+// Proyectos adicionales
 apiRouter.use('/actividades-proyecto',  actividadProyectoRoutes);
 apiRouter.use('/subproyectos',          subproyectoRoutes);
 apiRouter.use('/asignaciones',          asignacionActividadRoutes);
 
-// Montar rutas de Contratos
+// Contratos
 apiRouter.use('/contratos', contratoRoutes);
 
-// Montar rutas de Programación
+// Programación
 apiRouter.use('/programaciones', programacionRoutes);
 apiRouter.use('/registros-diarios-programacion', registroDiarioProgramacionRoutes);
 
-
-// Montar rutas de Reportes
+// Reportes
 apiRouter.use('/reportes', reportesRoutes);
 
-// Montar rutas en /api/v1
+// Montar en /api/v1
 app.use('/api/v1', apiRouter);
 
 // ========================================
 // MANEJO DE ERRORES
 // ========================================
 
-// Ruta no encontrada
 app.use(notFound);
-
-// Manejador de errores global
 app.use(errorHandler);
 
 // ========================================
@@ -204,10 +199,7 @@ app.use(errorHandler);
 
 const startServer = async () => {
   try {
-    // Conectar a MongoDB
     await connectDB();
-
-    // Iniciar servidor
     app.listen(PORT, () => {
       logger.success(`✓ Servidor ejecutándose en puerto ${PORT}`);
       logger.info(`✓ Ambiente: ${process.env.NODE_ENV || 'development'}`);
@@ -220,21 +212,19 @@ const startServer = async () => {
   }
 };
 
-// Manejo de errores no capturados
 process.on('unhandledRejection', (reason, promise) => {
   logger.error('Unhandled Rejection', { reason, promise });
   process.exit(1);
 });
 
 process.on('uncaughtException', (error) => {
-  logger.error('Uncaught Exception', { 
-    error: error.message, 
-    stack: error.stack 
+  logger.error('Uncaught Exception', {
+    error: error.message,
+    stack: error.stack
   });
   process.exit(1);
 });
 
-// Iniciar servidor
 startServer();
 
 module.exports = app;
