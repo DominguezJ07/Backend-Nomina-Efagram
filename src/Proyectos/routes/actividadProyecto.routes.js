@@ -20,8 +20,8 @@ const validacion = [
   body('actividad').notEmpty().isMongoId().withMessage('Actividad inválida'),
   body('intervencion')
     .notEmpty()
-    .isIn(['mantenimiento', 'no_programadas', 'establecimiento'])
-    .withMessage('Intervención inválida'),
+    .isMongoId()
+    .withMessage('Intervención inválida — debe ser un ID válido'),
   body('cantidad_total')
     .notEmpty()
     .isFloat({ min: 0.01 })
