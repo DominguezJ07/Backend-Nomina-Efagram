@@ -11,7 +11,7 @@ const getIntervenciones = asyncHandler(async (req, res) => {
   const { activo, proceso } = req.query;
 
   const filter = {};
-  if (activo !== undefined) filter.activo = activo === 'true';
+  filter.activo = activo !== undefined ? activo === 'true' : true;
   if (proceso) filter.proceso = proceso;
 
   const intervenciones = await Intervencion.find(filter)
@@ -136,13 +136,11 @@ const deleteIntervencion = asyncHandler(async (req, res) => {
     throw new ApiError(404, 'Intervención no encontrada');
   }
 
-  intervencion.activo = false;
-  await intervencion.save();
+  await Intervencion.findByIdAndDelete(req.params.id);
 
   res.status(200).json({
     success: true,
-    message: 'Intervención desactivada exitosamente',
-    data: intervencion
+    message: 'Intervención eliminada exitosamente'
   });
 });
 
