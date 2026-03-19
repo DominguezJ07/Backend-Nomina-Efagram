@@ -8,7 +8,6 @@ const intervencionSchema = new mongoose.Schema(
       unique: true,
       uppercase: true,
       trim: true,
-      minlength: [2, 'El código debe tener al menos 2 caracteres'],
       maxlength: [20, 'El código no puede superar 20 caracteres']
     },
     nombre: {
@@ -45,7 +44,7 @@ intervencionSchema.index({ proceso: 1, activo: 1 });
 intervencionSchema.index({ nombre: 'text' });
 
 // Middleware pre-save: valida que el proceso exista y esté activo
-intervencionSchema.pre('save', async function (next) {
+intervencionSchema.pre('save', async function () {
   if (this.isModified('proceso')) {
     const Proceso = mongoose.model('Proceso');
     const procesoExiste = await Proceso.findById(this.proceso);
@@ -58,7 +57,6 @@ intervencionSchema.pre('save', async function (next) {
       throw new Error('El proceso especificado está inactivo');
     }
   }
-  next();
 });
 
 intervencionSchema.set('toJSON', { virtuals: true });
