@@ -19,7 +19,7 @@ const intervencionCreateValidation = [
     .notEmpty().withMessage('El código es obligatorio')
     .trim()
     .toUpperCase()
-    .isLength({ min: 2, max: 20 }).withMessage('El código debe tener entre 2 y 20 caracteres'),
+    .isLength({ min: 1, max: 20 }).withMessage('El código debe tener entre 2 y 20 caracteres'),
   body('nombre')
     .notEmpty().withMessage('El nombre es obligatorio')
     .trim()
@@ -40,7 +40,7 @@ const intervencionUpdateValidation = [
     .optional({ values: 'falsy' })
     .trim()
     .toUpperCase()
-    .isLength({ min: 2, max: 20 }).withMessage('El código debe tener entre 2 y 20 caracteres'),
+    .isLength({ min: 1, max: 20 }).withMessage('El código debe tener entre 2 y 20 caracteres'),
   body('nombre')
     .optional({ values: 'falsy' })
     .trim()
