@@ -17,7 +17,8 @@ const getActividadesProyecto = asyncHandler(async (req, res) => {
     .populate('actividad', 'nombre codigo unidad_medida categoria')
     .populate('cliente', 'nombre razon_social')
     .populate('supervisor', 'nombres apellidos')
-    .sort({ intervencion: 1, createdAt: 1 });
+    .populate('intervencion', 'nombre codigo')
+    .sort({ createdAt: 1 });
 
   res.status(200).json({
     success: true,
@@ -34,7 +35,8 @@ const getActividadProyecto = asyncHandler(async (req, res) => {
     .populate('actividad')
     .populate('cliente')
     .populate('supervisor')
-    .populate('proyecto', 'codigo nombre zona');
+    .populate('proyecto', 'codigo nombre zona')
+    .populate('intervencion', 'nombre codigo');
 
   if (!act) throw new ApiError(404, 'Actividad de proyecto no encontrada');
 
@@ -65,6 +67,7 @@ const createActividadProyecto = asyncHandler(async (req, res) => {
     { path: 'actividad', select: 'nombre codigo unidad_medida' },
     { path: 'cliente', select: 'nombre razon_social' },
     { path: 'supervisor', select: 'nombres apellidos' },
+    { path: 'intervencion', select: 'nombre codigo' },
   ]);
 
   res.status(201).json({
@@ -102,6 +105,7 @@ const updateActividadProyecto = asyncHandler(async (req, res) => {
   await act.populate([
     { path: 'actividad', select: 'nombre codigo unidad_medida' },
     { path: 'cliente', select: 'nombre razon_social' },
+    { path: 'intervencion', select: 'nombre codigo' },
   ]);
 
   res.status(200).json({
@@ -151,7 +155,8 @@ const getActividadesDisponibles = asyncHandler(async (req, res) => {
   const actividades = await ActividadProyecto.find(filter)
     .populate('actividad', 'nombre codigo unidad_medida categoria')
     .populate('cliente', 'nombre razon_social')
-    .sort({ intervencion: 1 });
+    .populate('intervencion', 'nombre codigo')
+    .sort({ createdAt: 1 });
 
   // Filtrar solo las que tienen cantidad disponible
   const disponibles = actividades.filter(

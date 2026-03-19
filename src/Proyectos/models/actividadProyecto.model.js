@@ -13,8 +13,8 @@ const actividadProyectoSchema = new mongoose.Schema(
       required: [true, 'La actividad es obligatoria'],
     },
     intervencion: {
-      type: String,
-      enum: ['mantenimiento', 'no_programadas', 'establecimiento'],
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Intervencion',
       required: [true, 'El tipo de intervención es obligatorio'],
     },
     cliente: {
