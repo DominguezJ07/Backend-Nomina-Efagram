@@ -233,12 +233,16 @@ exports.updateMultiplesRegistros = async (req, res) => {
       const estadoCalc = cantidad > 0 ? 'COMPLETADO' : 'PENDIENTE';
       const tiempo     = item.tiempo_detenido    !== undefined ? Math.max(0, item.tiempo_detenido)    : 0;
 
+      // Convertir string vacío a null para no romper el enum de Mongoose
+      const motivoRaw  = item.motivo_detencion || null;
+      const motivo     = tiempo === 0 ? null : motivoRaw;
+
       const update = {
         cantidad_ejecutada:    cantidad,
         estado:                estadoCalc,
         tiempo_detenido:       tiempo,
-        motivo_detencion:      tiempo === 0 ? null : (item.motivo_detencion || null),
-        motivo_detencion_otro: tiempo > 0 && item.motivo_detencion === 'OTRO'
+        motivo_detencion:      motivo,
+        motivo_detencion_otro: tiempo > 0 && motivo === 'OTRO'
           ? (item.motivo_detencion_otro || '')
           : '',
       };

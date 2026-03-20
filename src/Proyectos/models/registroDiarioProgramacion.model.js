@@ -69,6 +69,7 @@ const registroDiarioProgramacionSchema = new mongoose.Schema(
           'ENFERMEDAD',
           'SUSPENSION_TRABAJO',
           'PROBLEMAS_ORDEN_PUBLICO',
+          'ORDEN_CLIENTE',
           'OTRO',
         ],
         message: 'Motivo de detención inválido',

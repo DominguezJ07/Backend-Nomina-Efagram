@@ -13,6 +13,19 @@ const registroDiarioController = require('../controllers/registroDiarioProgramac
 
 const router = express.Router();
 
+// Valores válidos para motivo_detencion (mismo orden que el modelo)
+const MOTIVOS_VALIDOS = [
+  'LLUVIA',
+  'FALLA_EQUIPO',
+  'ACCIDENTE',
+  'FESTIVO',
+  'ENFERMEDAD',
+  'SUSPENSION_TRABAJO',
+  'PROBLEMAS_ORDEN_PUBLICO',
+  'ORDEN_CLIENTE',
+  'OTRO',
+];
+
 // ── Aplicar autenticación a todas las rutas ─────────────────────────
 router.use(authenticate);
 
@@ -70,8 +83,9 @@ router.post(
       .isFloat({ min: 0, max: 24 })
       .withMessage('Tiempo detenido debe estar entre 0 y 24 horas'),
     body('motivo_detencion')
-      .optional()
-      .isIn(['LLUVIA','FALLA_EQUIPO','ACCIDENTE','FESTIVO','ENFERMEDAD','SUSPENSION_TRABAJO','PROBLEMAS_ORDEN_PUBLICO','OTRO'])
+      .optional({ values: 'falsy' })
+      .toUpperCase()
+      .isIn(MOTIVOS_VALIDOS)
       .withMessage('Motivo de detención inválido'),
     body('motivo_detencion_otro')
       .optional()
@@ -84,7 +98,7 @@ router.post(
 );
 
 // ────────────────────────────────────────────────────────────────────
-// 5. POST: Actualizar múltiples registros (IMPORTANTE: para el modal)
+// 5. POST: Actualizar múltiples registros (modal)
 // ────────────────────────────────────────────────────────────────────
 router.post(
   '/actualizar-multiples',
@@ -105,8 +119,9 @@ router.post(
       .isFloat({ min: 0, max: 24 })
       .withMessage('Tiempo detenido debe estar entre 0 y 24 horas'),
     body('registros.*.motivo_detencion')
-      .optional()
-      .isIn(['LLUVIA','FALLA_EQUIPO','ACCIDENTE','FESTIVO','ENFERMEDAD','SUSPENSION_TRABAJO','PROBLEMAS_ORDEN_PUBLICO','OTRO'])
+      .optional({ values: 'falsy' })
+      .toUpperCase()
+      .isIn(MOTIVOS_VALIDOS)
       .withMessage('Motivo de detención inválido'),
     body('registros.*.motivo_detencion_otro')
       .optional()
@@ -148,8 +163,9 @@ router.put(
       .isFloat({ min: 0, max: 24 })
       .withMessage('Tiempo detenido debe estar entre 0 y 24 horas'),
     body('motivo_detencion')
-      .optional()
-      .isIn(['LLUVIA','FALLA_EQUIPO','ACCIDENTE','FESTIVO','ENFERMEDAD','SUSPENSION_TRABAJO','PROBLEMAS_ORDEN_PUBLICO','OTRO'])
+      .optional({ values: 'falsy' })
+      .toUpperCase()
+      .isIn(MOTIVOS_VALIDOS)
       .withMessage('Motivo de detención inválido'),
     body('motivo_detencion_otro')
       .optional()
