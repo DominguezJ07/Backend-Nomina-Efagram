@@ -94,7 +94,15 @@ exports.getRegistroDiarioById = async (req, res) => {
 // ── 3. CREAR REGISTRO DIARIO ─────────────────────────────────────────
 exports.createRegistroDiario = async (req, res) => {
   try {
-    const { programacion_id, fecha, cantidad_ejecutada, observaciones } = req.body;
+    const {
+      programacion_id,
+      fecha,
+      cantidad_ejecutada,
+      observaciones,
+      tiempo_detenido,
+      motivo_detencion,
+      motivo_detencion_otro,
+    } = req.body;
     const usuario_id = req.user?.id || null;
 
     const programacion = await Programacion.findById(programacion_id);
@@ -102,12 +110,31 @@ exports.createRegistroDiario = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Programación no encontrada' });
     }
 
+    // Si hay tiempo detenido debe haber motivo
+    if (tiempo_detenido > 0 && !motivo_detencion) {
+      return res.status(400).json({
+        success: false,
+        message: 'Debe especificar el motivo de detención cuando hay tiempo detenido',
+      });
+    }
+
+    // Si el motivo es OTRO debe haber descripción
+    if (motivo_detencion === 'OTRO' && !motivo_detencion_otro) {
+      return res.status(400).json({
+        success: false,
+        message: 'Debe especificar el detalle cuando el motivo es OTRO',
+      });
+    }
+
     const registro = await RegistroDiarioProgramacion.create({
-      programacion:       programacion_id,
-      fecha:              new Date(fecha),
-      cantidad_ejecutada: cantidad_ejecutada || 0,
-      observaciones:      observaciones || '',
-      registrado_por:     usuario_id,
+      programacion:          programacion_id,
+      fecha:                 new Date(fecha),
+      cantidad_ejecutada:    cantidad_ejecutada || 0,
+      observaciones:         observaciones || '',
+      tiempo_detenido:       tiempo_detenido || 0,
+      motivo_detencion:      motivo_detencion || null,
+      motivo_detencion_otro: motivo_detencion_otro || '',
+      registrado_por:        usuario_id,
     });
 
     await recalcularProgramacion(programacion_id);
@@ -125,15 +152,42 @@ exports.createRegistroDiario = async (req, res) => {
 exports.updateRegistroDiario = async (req, res) => {
   try {
     const { id } = req.params;
-    const { cantidad_ejecutada, observaciones } = req.body;
+    const {
+      cantidad_ejecutada,
+      observaciones,
+      tiempo_detenido,
+      motivo_detencion,
+      motivo_detencion_otro,
+    } = req.body;
 
-    const cantidad  = cantidad_ejecutada !== undefined ? Math.max(0, cantidad_ejecutada) : undefined;
+    // Validaciones de jornada detenida
+    const tiempoVal = tiempo_detenido !== undefined ? Math.max(0, tiempo_detenido) : undefined;
+    if (tiempoVal > 0 && !motivo_detencion) {
+      return res.status(400).json({
+        success: false,
+        message: 'Debe especificar el motivo de detención cuando hay tiempo detenido',
+      });
+    }
+    if (motivo_detencion === 'OTRO' && !motivo_detencion_otro) {
+      return res.status(400).json({
+        success: false,
+        message: 'Debe especificar el detalle cuando el motivo es OTRO',
+      });
+    }
+
+    const cantidad    = cantidad_ejecutada !== undefined ? Math.max(0, cantidad_ejecutada) : undefined;
     const nuevoEstado = cantidad !== undefined ? (cantidad > 0 ? 'COMPLETADO' : 'PENDIENTE') : undefined;
 
     const update = {};
-    if (cantidad      !== undefined) update.cantidad_ejecutada = cantidad;
-    if (nuevoEstado   !== undefined) update.estado             = nuevoEstado;
-    if (observaciones !== undefined) update.observaciones      = observaciones;
+    if (cantidad       !== undefined) update.cantidad_ejecutada    = cantidad;
+    if (nuevoEstado    !== undefined) update.estado                = nuevoEstado;
+    if (observaciones  !== undefined) update.observaciones         = observaciones;
+    if (tiempoVal      !== undefined) update.tiempo_detenido       = tiempoVal;
+    if (motivo_detencion !== undefined) {
+      // Si tiempo es 0, limpiar el motivo
+      update.motivo_detencion = tiempoVal === 0 ? null : motivo_detencion;
+    }
+    if (motivo_detencion_otro !== undefined) update.motivo_detencion_otro = motivo_detencion_otro;
 
     // ✅ findByIdAndUpdate bypasea hooks — sin cadena de saves problemática
     const registro = await RegistroDiarioProgramacion.findByIdAndUpdate(
@@ -175,12 +229,18 @@ exports.updateMultiplesRegistros = async (req, res) => {
         continue;
       }
 
-      const cantidad    = item.cantidad_ejecutada !== undefined ? Math.max(0, item.cantidad_ejecutada) : 0;
-      const estadoCalc  = cantidad > 0 ? 'COMPLETADO' : 'PENDIENTE';
+      const cantidad   = item.cantidad_ejecutada !== undefined ? Math.max(0, item.cantidad_ejecutada) : 0;
+      const estadoCalc = cantidad > 0 ? 'COMPLETADO' : 'PENDIENTE';
+      const tiempo     = item.tiempo_detenido    !== undefined ? Math.max(0, item.tiempo_detenido)    : 0;
 
       const update = {
-        cantidad_ejecutada: cantidad,
-        estado:             estadoCalc,
+        cantidad_ejecutada:    cantidad,
+        estado:                estadoCalc,
+        tiempo_detenido:       tiempo,
+        motivo_detencion:      tiempo === 0 ? null : (item.motivo_detencion || null),
+        motivo_detencion_otro: tiempo > 0 && item.motivo_detencion === 'OTRO'
+          ? (item.motivo_detencion_otro || '')
+          : '',
       };
       if (item.observaciones !== undefined) update.observaciones = item.observaciones;
 
@@ -198,10 +258,13 @@ exports.updateMultiplesRegistros = async (req, res) => {
       if (!programacion_id) programacion_id = registro.programacion;
 
       resultados.push({
-        id:                 item.id,
-        success:            true,
-        cantidad_ejecutada: registro.cantidad_ejecutada,
-        estado:             registro.estado,
+        id:                    item.id,
+        success:               true,
+        cantidad_ejecutada:    registro.cantidad_ejecutada,
+        estado:                registro.estado,
+        tiempo_detenido:       registro.tiempo_detenido,
+        motivo_detencion:      registro.motivo_detencion,
+        motivo_detencion_otro: registro.motivo_detencion_otro,
       });
     }
 
@@ -241,13 +304,16 @@ exports.getRegistrosSemana = async (req, res) => {
     const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
     const dias = registros.map((r, idx) => ({
-      _id:                r._id,
-      numero_dia:         idx + 1,
-      dia_semana:         DIAS[new Date(r.fecha).getDay()],
-      fecha:              r.fecha,
-      cantidad_ejecutada: r.cantidad_ejecutada,
-      estado:             r.estado,
-      observaciones:      r.observaciones,
+      _id:                   r._id,
+      numero_dia:            idx + 1,
+      dia_semana:            DIAS[new Date(r.fecha).getDay()],
+      fecha:                 r.fecha,
+      cantidad_ejecutada:    r.cantidad_ejecutada,
+      estado:                r.estado,
+      observaciones:         r.observaciones,
+      tiempo_detenido:       r.tiempo_detenido,
+      motivo_detencion:      r.motivo_detencion,
+      motivo_detencion_otro: r.motivo_detencion_otro,
     }));
 
     res.json({

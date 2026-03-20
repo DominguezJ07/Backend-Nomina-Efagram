@@ -50,6 +50,38 @@ const registroDiarioProgramacionSchema = new mongoose.Schema(
       default: '',
     },
 
+    // ── JORNADA DETENIDA ───────────────────────────────────────────
+    tiempo_detenido: {
+      type: Number,
+      default: 0,
+      min: [0, 'El tiempo detenido no puede ser negativo'],
+      max: [24, 'El tiempo detenido no puede superar 24 horas'],
+    },
+
+    motivo_detencion: {
+      type: String,
+      enum: {
+        values: [
+          'LLUVIA',
+          'FALLA_EQUIPO',
+          'ACCIDENTE',
+          'FESTIVO',
+          'ENFERMEDAD',
+          'SUSPENSION_TRABAJO',
+          'PROBLEMAS_ORDEN_PUBLICO',
+          'OTRO',
+        ],
+        message: 'Motivo de detención inválido',
+      },
+      default: null,
+    },
+
+    motivo_detencion_otro: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+
     // ── VALIDADO/REVISADO ─────────────────────────────────────────
     validado: {
       type: Boolean,

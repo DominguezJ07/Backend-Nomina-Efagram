@@ -65,6 +65,19 @@ router.post(
       .trim()
       .isLength({ max: 300 })
       .withMessage('Observaciones no deben exceder 300 caracteres'),
+    body('tiempo_detenido')
+      .optional()
+      .isFloat({ min: 0, max: 24 })
+      .withMessage('Tiempo detenido debe estar entre 0 y 24 horas'),
+    body('motivo_detencion')
+      .optional()
+      .isIn(['LLUVIA','FALLA_EQUIPO','ACCIDENTE','FESTIVO','ENFERMEDAD','SUSPENSION_TRABAJO','PROBLEMAS_ORDEN_PUBLICO','OTRO'])
+      .withMessage('Motivo de detención inválido'),
+    body('motivo_detencion_otro')
+      .optional()
+      .trim()
+      .isLength({ max: 200 })
+      .withMessage('El detalle no debe exceder 200 caracteres'),
     validateRequest,
   ],
   registroDiarioController.createRegistroDiario
@@ -87,6 +100,19 @@ router.post(
       .optional()
       .isFloat({ min: 0 })
       .withMessage('Cantidad debe ser mayor o igual a 0'),
+    body('registros.*.tiempo_detenido')
+      .optional()
+      .isFloat({ min: 0, max: 24 })
+      .withMessage('Tiempo detenido debe estar entre 0 y 24 horas'),
+    body('registros.*.motivo_detencion')
+      .optional()
+      .isIn(['LLUVIA','FALLA_EQUIPO','ACCIDENTE','FESTIVO','ENFERMEDAD','SUSPENSION_TRABAJO','PROBLEMAS_ORDEN_PUBLICO','OTRO'])
+      .withMessage('Motivo de detención inválido'),
+    body('registros.*.motivo_detencion_otro')
+      .optional()
+      .trim()
+      .isLength({ max: 200 })
+      .withMessage('El detalle no debe exceder 200 caracteres'),
     validateRequest,
   ],
   registroDiarioController.updateMultiplesRegistros
@@ -117,6 +143,19 @@ router.put(
       .trim()
       .isLength({ max: 300 })
       .withMessage('Observaciones no deben exceder 300 caracteres'),
+    body('tiempo_detenido')
+      .optional()
+      .isFloat({ min: 0, max: 24 })
+      .withMessage('Tiempo detenido debe estar entre 0 y 24 horas'),
+    body('motivo_detencion')
+      .optional()
+      .isIn(['LLUVIA','FALLA_EQUIPO','ACCIDENTE','FESTIVO','ENFERMEDAD','SUSPENSION_TRABAJO','PROBLEMAS_ORDEN_PUBLICO','OTRO'])
+      .withMessage('Motivo de detención inválido'),
+    body('motivo_detencion_otro')
+      .optional()
+      .trim()
+      .isLength({ max: 200 })
+      .withMessage('El detalle no debe exceder 200 caracteres'),
     validateRequest,
   ],
   registroDiarioController.updateRegistroDiario
