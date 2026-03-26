@@ -1,4 +1,5 @@
 const Zona = require('../models/zona.model');
+const codigoTerritorialService = require('../services/codigoTerritorial.service');
 const { asyncHandler, ApiError } = require('../../middlewares/errorHandler');
 
 /**
@@ -20,6 +21,20 @@ const getZonas = asyncHandler(async (req, res) => {
     success: true,
     count: zonas.length,
     data: zonas
+  });
+});
+
+/**
+ * @desc    Obtener siguiente código de zona
+ * @route   GET /api/v1/zonas/next-code
+ * @access  Private
+ */
+const getNextZonaCodigo = asyncHandler(async (_req, res) => {
+  const next = await codigoTerritorialService.getNextZonaCodigo();
+
+  res.status(200).json({
+    success: true,
+    data: next
   });
 });
 
@@ -65,7 +80,16 @@ const getZonaByCodigo = asyncHandler(async (req, res) => {
  * @access  Private (Admin)
  */
 const createZona = asyncHandler(async (req, res) => {
-  const zona = await Zona.create(req.body);
+  const payload = { ...req.body };
+
+  if (!payload.codigo && payload.codigo !== 0) {
+    const next = await codigoTerritorialService.getNextZonaCodigo();
+    payload.codigo = next.raw;
+  } else {
+    payload.codigo = Number(payload.codigo);
+  }
+
+  const zona = await Zona.create(payload);
 
   res.status(201).json({
     success: true,
@@ -86,8 +110,7 @@ const updateZona = asyncHandler(async (req, res) => {
     throw new ApiError(404, 'Zona no encontrada');
   }
 
-  // Verificar si el código está cambiando y si ya existe
-  if (req.body.codigo && Number(req.body.codigo) !== zona.codigo) {
+  if (req.body.codigo !== undefined && Number(req.body.codigo) !== zona.codigo) {
     const existeCodigo = await Zona.findOne({ 
       codigo: Number(req.body.codigo),
       _id: { $ne: req.params.id }
@@ -98,7 +121,6 @@ const updateZona = asyncHandler(async (req, res) => {
     }
   }
 
-  // Verificar si el nombre está cambiando y si ya existe
   if (req.body.nombre && req.body.nombre !== zona.nombre) {
     const existeNombre = await Zona.findOne({ 
       nombre: req.body.nombre,
@@ -110,11 +132,10 @@ const updateZona = asyncHandler(async (req, res) => {
     }
   }
 
-  // Actualizar solo los campos permitidos
   const camposPermitidos = ['nombre', 'codigo', 'descripcion', 'activa'];
   camposPermitidos.forEach(campo => {
     if (req.body[campo] !== undefined) {
-      zona[campo] = req.body[campo];
+      zona[campo] = campo === 'codigo' ? Number(req.body[campo]) : req.body[campo];
     }
   });
 
@@ -139,12 +160,10 @@ const deleteZona = asyncHandler(async (req, res) => {
     throw new ApiError(404, 'Zona no encontrada');
   }
 
-  // Verificar si la zona ya está inactiva
   if (!zona.activa) {
     throw new ApiError(400, 'La zona ya está desactivada');
   }
 
-  // Soft delete
   zona.activa = false;
   await zona.save();
 
@@ -176,6 +195,7 @@ const getNucleosByZona = asyncHandler(async (req, res) => {
 
 module.exports = {
   getZonas,
+  getNextZonaCodigo,
   getZona,
   getZonaByCodigo,
   createZona,
