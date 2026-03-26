@@ -1,5 +1,6 @@
 const Nucleo = require('../models/nucleo.model');
 const territorialService = require('../services/territorial.service');
+const codigoTerritorialService = require('../services/codigoTerritorial.service');
 const { asyncHandler, ApiError } = require('../../middlewares/errorHandler');
 
 /**
@@ -22,6 +23,28 @@ const getNucleos = asyncHandler(async (req, res) => {
     success: true,
     count: nucleos.length,
     data: nucleos
+  });
+});
+
+/**
+ * @desc    Obtener siguiente código de núcleo por zona
+ * @route   GET /api/v1/nucleos/next-code?zona=...
+ * @access  Private
+ */
+const getNextNucleoCodigo = asyncHandler(async (req, res) => {
+  const { zona } = req.query;
+
+  if (!zona) {
+    throw new ApiError(400, 'La zona es obligatoria para calcular el siguiente código');
+  }
+
+  await territorialService.validateZonaExists(zona);
+
+  const next = await codigoTerritorialService.getNextNucleoCodigo(zona);
+
+  res.status(200).json({
+    success: true,
+    data: next
   });
 });
 
@@ -51,10 +74,16 @@ const getNucleo = asyncHandler(async (req, res) => {
  * @access  Private (Admin)
  */
 const createNucleo = asyncHandler(async (req, res) => {
-  // Validar que la zona exista
   await territorialService.validateZonaExists(req.body.zona);
 
-  const nucleo = await Nucleo.create(req.body);
+  const payload = { ...req.body };
+
+  if (!payload.codigo) {
+    const next = await codigoTerritorialService.getNextNucleoCodigo(payload.zona);
+    payload.codigo = next.raw;
+  }
+
+  const nucleo = await Nucleo.create(payload);
   await nucleo.populate('zona');
 
   res.status(201).json({
@@ -76,7 +105,6 @@ const updateNucleo = asyncHandler(async (req, res) => {
     throw new ApiError(404, 'Núcleo no encontrado');
   }
 
-  // Si se cambia la zona, validar que exista
   if (req.body.zona && req.body.zona !== nucleo.zona.toString()) {
     await territorialService.validateZonaExists(req.body.zona);
   }
@@ -137,9 +165,10 @@ const getFincasByNucleo = asyncHandler(async (req, res) => {
 
 module.exports = {
   getNucleos,
+  getNextNucleoCodigo,
   getNucleo,
   createNucleo,
   updateNucleo,
   deleteNucleo,
   getFincasByNucleo
-}; 
+};

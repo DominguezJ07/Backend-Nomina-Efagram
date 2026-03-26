@@ -1,10 +1,11 @@
 const express = require('express');
-const { body, param, query } = require('express-validator');
+const { body } = require('express-validator');
 const { validateRequest, validateMongoId } = require('../../middlewares/validateRequest');
 const { authenticate, authorize } = require('../../middlewares/authMiddleware');
 const { ROLES } = require('../../config/constants');
 const {
   getZonas,
+  getNextZonaCodigo,
   getZona,
   getZonaByCodigo,
   createZona,
@@ -15,11 +16,9 @@ const {
 
 const router = express.Router();
 
-// Validaciones para crear
 const createZonaValidation = [
   body('codigo')
-    .notEmpty()
-    .withMessage('El código es obligatorio')
+    .optional()
     .isInt({ min: 1, max: 99 })
     .withMessage('El código debe ser un número entre 1 y 99 (ej: 1, 05, 23, 99)'),
   body('nombre')
@@ -34,7 +33,6 @@ const createZonaValidation = [
   validateRequest
 ];
 
-// Validaciones para actualizar (campos opcionales)
 const updateZonaValidation = [
   body('codigo')
     .optional()
@@ -57,13 +55,12 @@ const updateZonaValidation = [
   validateRequest
 ];
 
-// Rutas públicas (solo lectura)
 router.get('/', getZonas);
+router.get('/next-code', authenticate, authorize(ROLES.ADMIN_SISTEMA, ROLES.JEFE_OPERACIONES), getNextZonaCodigo);
 router.get('/codigo/:codigo', getZonaByCodigo);
 router.get('/:id', validateMongoId('id'), getZona);
 router.get('/:id/nucleos', validateMongoId('id'), getNucleosByZona);
 
-// Rutas protegidas
 router.post(
   '/',
   authenticate,
@@ -89,4 +86,4 @@ router.delete(
   deleteZona
 );
 
-module.exports = router;  
+module.exports = router;

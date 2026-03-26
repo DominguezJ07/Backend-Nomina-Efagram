@@ -1,5 +1,6 @@
 const Finca = require('../models/finca.model');
 const territorialService = require('../services/territorial.service');
+const codigoTerritorialService = require('../services/codigoTerritorial.service');
 const { asyncHandler, ApiError } = require('../../middlewares/errorHandler');
 
 /**
@@ -25,6 +26,28 @@ const getFincas = asyncHandler(async (req, res) => {
     success: true,
     count: fincas.length,
     data: fincas
+  });
+});
+
+/**
+ * @desc    Obtener siguiente código de finca por núcleo
+ * @route   GET /api/v1/fincas/next-code?nucleo=...
+ * @access  Private
+ */
+const getNextFincaCodigo = asyncHandler(async (req, res) => {
+  const { nucleo } = req.query;
+
+  if (!nucleo) {
+    throw new ApiError(400, 'El núcleo es obligatorio para calcular el siguiente código');
+  }
+
+  await territorialService.validateNucleoExists(nucleo);
+
+  const next = await codigoTerritorialService.getNextFincaCodigo(nucleo);
+
+  res.status(200).json({
+    success: true,
+    data: next
   });
 });
 
@@ -57,10 +80,16 @@ const getFinca = asyncHandler(async (req, res) => {
  * @access  Private (Admin)
  */
 const createFinca = asyncHandler(async (req, res) => {
-  // Validar que el núcleo exista
   await territorialService.validateNucleoExists(req.body.nucleo);
 
-  const finca = await Finca.create(req.body);
+  const payload = { ...req.body };
+
+  if (!payload.codigo) {
+    const next = await codigoTerritorialService.getNextFincaCodigo(payload.nucleo);
+    payload.codigo = next.raw;
+  }
+
+  const finca = await Finca.create(payload);
   await finca.populate({
     path: 'nucleo',
     populate: { path: 'zona' }
@@ -85,7 +114,6 @@ const updateFinca = asyncHandler(async (req, res) => {
     throw new ApiError(404, 'Finca no encontrada');
   }
 
-  // Si se cambia el núcleo, validar que exista
   if (req.body.nucleo && req.body.nucleo !== finca.nucleo.toString()) {
     await territorialService.validateNucleoExists(req.body.nucleo);
   }
@@ -149,6 +177,7 @@ const getLotesByFinca = asyncHandler(async (req, res) => {
 
 module.exports = {
   getFincas,
+  getNextFincaCodigo,
   getFinca,
   createFinca,
   updateFinca,

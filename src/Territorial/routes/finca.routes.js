@@ -4,72 +4,86 @@ const { validateRequest, validateMongoId } = require('../../middlewares/validate
 const { authenticate, authorize } = require('../../middlewares/authMiddleware');
 const { ROLES } = require('../../config/constants');
 const {
-  getFincas,
-  getFinca,
-  createFinca,
-  updateFinca,
-  deleteFinca,
-  getLotesByFinca
-} = require('../controllers/finca.controller');
+  getZonas,
+  getNextZonaCodigo,
+  getZona,
+  getZonaByCodigo,
+  createZona,
+  updateZona,
+  deleteZona,
+  getNucleosByZona
+} = require('../controllers/zona.controller');
 
 const router = express.Router();
 
-// Validaciones
-const fincaValidation = [
+const createZonaValidation = [
   body('codigo')
-    .notEmpty()
-    .withMessage('El código es obligatorio')
-    .isLength({ min: 2, max: 20 })
-    .withMessage('El código debe tener entre 2 y 20 caracteres')
-    .trim()
-    .toUpperCase(),
+    .optional()
+    .isInt({ min: 1, max: 99 })
+    .withMessage('El código debe ser un número entre 1 y 99 (ej: 1, 05, 23, 99)'),
   body('nombre')
     .notEmpty()
     .withMessage('El nombre es obligatorio')
-    .isLength({ min: 3, max: 100 })
-    .withMessage('El nombre debe tener entre 3 y 100 caracteres')
+    .isString()
     .trim(),
-  body('nucleo')
-    .notEmpty()
-    .withMessage('El núcleo es obligatorio')
-    .isMongoId()
-    .withMessage('ID de núcleo inválido'),
-  body('area_total')
+  body('descripcion')
     .optional()
-    .isFloat({ min: 0 })
-    .withMessage('El área debe ser un número positivo'),
+    .isString()
+    .trim(),
   validateRequest
 ];
 
-// Rutas públicas
-router.get('/', getFincas);
-router.get('/:id', validateMongoId('id'), getFinca);
-router.get('/:id/lotes', validateMongoId('id'), getLotesByFinca);
+const updateZonaValidation = [
+  body('codigo')
+    .optional()
+    .isInt({ min: 1, max: 99 })
+    .withMessage('El código debe ser un número entre 1 y 99'),
+  body('nombre')
+    .optional()
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage('El nombre no puede estar vacío'),
+  body('descripcion')
+    .optional()
+    .isString()
+    .trim(),
+  body('activa')
+    .optional()
+    .isBoolean()
+    .withMessage('El campo activa debe ser verdadero o falso'),
+  validateRequest
+];
 
-// Rutas protegidas
+router.get('/', getZonas);
+router.get('/next-code', authenticate, authorize(ROLES.ADMIN_SISTEMA, ROLES.JEFE_OPERACIONES), getNextZonaCodigo);
+router.get('/codigo/:codigo', getZonaByCodigo);
+router.get('/:id', validateMongoId('id'), getZona);
+router.get('/:id/nucleos', validateMongoId('id'), getNucleosByZona);
+
 router.post(
   '/',
   authenticate,
-  authorize(ROLES.ADMIN_SISTEMA, ROLES.JEFE_OPERACIONES, ROLES.ADMIN_FINCA),
-  fincaValidation,
-  createFinca
+  authorize(ROLES.ADMIN_SISTEMA, ROLES.JEFE_OPERACIONES),
+  createZonaValidation,
+  createZona
 );
 
 router.put(
   '/:id',
   authenticate,
-  authorize(ROLES.ADMIN_SISTEMA, ROLES.JEFE_OPERACIONES, ROLES.ADMIN_FINCA),
+  authorize(ROLES.ADMIN_SISTEMA, ROLES.JEFE_OPERACIONES),
   validateMongoId('id'),
-  fincaValidation,
-  updateFinca
+  updateZonaValidation,
+  updateZona
 );
 
 router.delete(
   '/:id',
   authenticate,
-  authorize(ROLES.ADMIN_SISTEMA, ROLES.JEFE_OPERACIONES),
+  authorize(ROLES.ADMIN_SISTEMA),
   validateMongoId('id'),
-  deleteFinca
+  deleteZona
 );
 
 module.exports = router;
