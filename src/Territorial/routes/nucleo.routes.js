@@ -4,69 +4,72 @@ const { validateRequest, validateMongoId } = require('../../middlewares/validate
 const { authenticate, authorize } = require('../../middlewares/authMiddleware');
 const { ROLES } = require('../../config/constants');
 const {
-  getZonas,
-  getNextZonaCodigo,
-  getZona,
-  getZonaByCodigo,
-  createZona,
-  updateZona,
-  deleteZona,
-  getNucleosByZona
-} = require('../controllers/zona.controller');
+  getNucleos,
+  getNextNucleoCodigo,
+  getNucleo,
+  createNucleo,
+  updateNucleo,
+  deleteNucleo,
+  getFincasByNucleo
+} = require('../controllers/nucleo.controller');
 
 const router = express.Router();
 
-const createZonaValidation = [
+const createNucleoValidation = [
   body('codigo')
     .optional()
-    .isInt({ min: 1, max: 99 })
-    .withMessage('El código debe ser un número entre 1 y 99 (ej: 1, 05, 23, 99)'),
+    .isLength({ min: 2, max: 20 })
+    .withMessage('El código debe tener entre 2 y 20 caracteres')
+    .trim()
+    .toUpperCase(),
   body('nombre')
     .notEmpty()
     .withMessage('El nombre es obligatorio')
-    .isString()
+    .isLength({ min: 3, max: 100 })
+    .withMessage('El nombre debe tener entre 3 y 100 caracteres')
     .trim(),
-  body('descripcion')
-    .optional()
-    .isString()
-    .trim(),
+  body('zona')
+    .notEmpty()
+    .withMessage('La zona es obligatoria')
+    .isMongoId()
+    .withMessage('ID de zona inválido'),
   validateRequest
 ];
 
-const updateZonaValidation = [
+const updateNucleoValidation = [
   body('codigo')
     .optional()
-    .isInt({ min: 1, max: 99 })
-    .withMessage('El código debe ser un número entre 1 y 99'),
+    .isLength({ min: 2, max: 20 })
+    .withMessage('El código debe tener entre 2 y 20 caracteres')
+    .trim()
+    .toUpperCase(),
   body('nombre')
     .optional()
-    .isString()
-    .trim()
-    .notEmpty()
-    .withMessage('El nombre no puede estar vacío'),
-  body('descripcion')
-    .optional()
-    .isString()
+    .isLength({ min: 3, max: 100 })
+    .withMessage('El nombre debe tener entre 3 y 100 caracteres')
     .trim(),
-  body('activa')
+  body('zona')
+    .optional()
+    .isMongoId()
+    .withMessage('ID de zona inválido'),
+  body('activo')
     .optional()
     .isBoolean()
-    .withMessage('El campo activa debe ser verdadero o falso'),
+    .withMessage('El campo activo debe ser verdadero o falso'),
   validateRequest
 ];
 
-router.get('/', getZonas);
-router.get('/next-code', authenticate, authorize(ROLES.ADMIN_SISTEMA, ROLES.JEFE_OPERACIONES), getNextZonaCodigo);
-router.get('/codigo/:codigo', getZonaByCodigo);
-router.get('/:id', validateMongoId('id'), getZona);
-router.get('/:id/nucleos', validateMongoId('id'), getNucleosByZona);
+router.get('/', getNucleos);
+router.get('/next-code', authenticate, authorize(ROLES.ADMIN_SISTEMA, ROLES.JEFE_OPERACIONES), getNextNucleoCodigo);
+router.get('/:id', validateMongoId('id'), getNucleo);
+router.get('/:id/fincas', validateMongoId('id'), getFincasByNucleo);
 
 router.post(
   '/',
   authenticate,
   authorize(ROLES.ADMIN_SISTEMA, ROLES.JEFE_OPERACIONES),
-  createZonaValidation,
-  createZona
+  createNucleoValidation,
+  createNucleo
 );
 
 router.put(
@@ -74,8 +77,8 @@ router.put(
   authenticate,
   authorize(ROLES.ADMIN_SISTEMA, ROLES.JEFE_OPERACIONES),
   validateMongoId('id'),
-  updateZonaValidation,
-  updateZona
+  updateNucleoValidation,
+  updateNucleo
 );
 
 router.delete(
@@ -83,7 +86,7 @@ router.delete(
   authenticate,
   authorize(ROLES.ADMIN_SISTEMA),
   validateMongoId('id'),
-  deleteZona
+  deleteNucleo
 );
 
 module.exports = router;
