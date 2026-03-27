@@ -129,7 +129,7 @@ const createActividad = asyncHandler(async (req, res) => {
     observaciones: observaciones?.trim() || '',
     activa: activa !== undefined ? Boolean(activa) : true,
 
-    // compatibilidad temporal
+    // Compatibilidad temporal
     categoria: categoria || null,
     unidad_medida: unidad_medida || null,
     rendimiento_diario_estimado:

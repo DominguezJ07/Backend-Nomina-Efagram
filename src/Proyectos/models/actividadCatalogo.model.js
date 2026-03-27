@@ -9,28 +9,32 @@ const actividadCatalogoSchema = new mongoose.Schema(
       uppercase: true,
       trim: true
     },
-
     nombre: {
       type: String,
       required: [true, 'El nombre es obligatorio'],
       trim: true
     },
+    descripcion: {
+      type: String,
+      trim: true,
+      default: ''
+    },
 
-    // ✅ Ahora la actividad se liga directamente a una intervención
+    // ✅ La actividad queda ligada a una intervención
     intervencion: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Intervencion',
       required: [true, 'La intervención es obligatoria']
     },
 
-    // ⚠️ Se deja temporalmente opcional por compatibilidad
+    // ⚠️ Compatibilidad temporal
     categoria: {
       type: String,
       trim: true,
       default: null
     },
 
-    // ⚠️ Ya no se usará en frontend, pero se deja opcional
+    // ⚠️ Compatibilidad temporal
     unidad_medida: {
       type: String,
       trim: true,
@@ -52,12 +56,6 @@ const actividadCatalogoSchema = new mongoose.Schema(
     activa: {
       type: Boolean,
       default: true
-    },
-
-    descripcion: {
-      type: String,
-      trim: true,
-      default: ''
     },
 
     observaciones: {

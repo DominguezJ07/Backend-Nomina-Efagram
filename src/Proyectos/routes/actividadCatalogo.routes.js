@@ -3,7 +3,6 @@ const { body, param } = require('express-validator');
 const { validateRequest, validateMongoId } = require('../../middlewares/validateRequest');
 const { authenticate, authorize } = require('../../middlewares/authMiddleware');
 const { ROLES } = require('../../config/constants');
-
 const {
   getActividades,
   getActividad,
