@@ -7,10 +7,15 @@ class PersonaService {
    * Validar que una persona exista
    */
   async validatePersonaExists(personaId) {
-    const persona = await Persona.findById(personaId);
+    const persona = await Persona.findById(personaId)
+      .populate('finca')
+      .populate('proceso')
+      .populate('supervisor', 'nombres apellidos num_doc cargo');
+
     if (!persona) {
       throw new ApiError(404, 'Persona no encontrada');
     }
+
     return persona;
   }
 
@@ -30,21 +35,105 @@ class PersonaService {
   }
 
   /**
+   * Obtener listado de personas
+   */
+  async getPersonas(filters = {}) {
+    const query = {};
+
+    if (filters.estado) query.estado = filters.estado;
+    if (filters.finca) query.finca = filters.finca;
+    if (filters.proceso) query.proceso = filters.proceso;
+    if (filters.supervisor) query.supervisor = filters.supervisor;
+    if (filters.tipo_contrato) query.tipo_contrato = filters.tipo_contrato;
+
+    return await Persona.find(query)
+      .populate('finca')
+      .populate('proceso')
+      .populate('supervisor', 'nombres apellidos num_doc cargo')
+      .sort({ apellidos: 1, nombres: 1 });
+  }
+
+  /**
+   * Obtener una persona por ID
+   */
+  async getPersonaById(personaId) {
+    return await Persona.findById(personaId)
+      .populate('finca')
+      .populate('proceso')
+      .populate('supervisor', 'nombres apellidos num_doc cargo');
+  }
+
+  /**
+   * Crear persona
+   */
+  async createPersona(data) {
+    await this.validateDocumentoUnico(data.num_doc);
+
+    const persona = await Persona.create(data);
+
+    return await Persona.findById(persona._id)
+      .populate('finca')
+      .populate('proceso')
+      .populate('supervisor', 'nombres apellidos num_doc cargo');
+  }
+
+  /**
+   * Actualizar persona
+   */
+  async updatePersona(personaId, data) {
+    const persona = await this.validatePersonaExists(personaId);
+
+    if (data.num_doc && data.num_doc !== persona.num_doc) {
+      await this.validateDocumentoUnico(data.num_doc, personaId);
+    }
+
+    Object.keys(data).forEach((key) => {
+      persona[key] = data[key];
+    });
+
+    await persona.save();
+
+    return await Persona.findById(persona._id)
+      .populate('finca')
+      .populate('proceso')
+      .populate('supervisor', 'nombres apellidos num_doc cargo');
+  }
+
+  /**
+   * Buscar personas
+   */
+  async buscarPersonas(q) {
+    const regex = new RegExp(q, 'i');
+
+    return await Persona.find({
+      $or: [
+        { num_doc: regex },
+        { nombres: regex },
+        { apellidos: regex },
+        { cargo: regex },
+        { email: regex },
+      ]
+    })
+      .populate('finca')
+      .populate('proceso')
+      .populate('supervisor', 'nombres apellidos num_doc cargo')
+      .sort({ apellidos: 1, nombres: 1 });
+  }
+
+  /**
    * Vincular persona con usuario
    */
   async vincularUsuario(personaId, usuarioId) {
     const persona = await this.validatePersonaExists(personaId);
-    
-    // Verificar que el usuario exista
+
     const usuario = await User.findById(usuarioId);
     if (!usuario) {
       throw new ApiError(404, 'Usuario no encontrado');
     }
 
-    // Verificar que el usuario no esté vinculado a otra persona
-    const personaVinculada = await Persona.findOne({ 
-      usuario: usuarioId, 
-      _id: { $ne: personaId } 
+    const personaVinculada = await Persona.findOne({
+      usuario: usuarioId,
+      _id: { $ne: personaId }
     });
 
     if (personaVinculada) {
@@ -61,7 +150,11 @@ class PersonaService {
    * Obtener personas por estado
    */
   async getPersonasByEstado(estado) {
-    return await Persona.find({ estado }).sort({ apellidos: 1 });
+    return await Persona.find({ estado })
+      .populate('finca')
+      .populate('proceso')
+      .populate('supervisor', 'nombres apellidos num_doc cargo')
+      .sort({ apellidos: 1, nombres: 1 });
   }
 
   /**
