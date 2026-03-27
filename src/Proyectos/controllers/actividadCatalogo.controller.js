@@ -1,4 +1,5 @@
 const ActividadCatalogo = require('../models/actividadCatalogo.model');
+const Intervencion = require('../../Catalogos/models/intervencion.model');
 const { asyncHandler, ApiError } = require('../../middlewares/errorHandler');
 
 /**
@@ -7,30 +8,22 @@ const { asyncHandler, ApiError } = require('../../middlewares/errorHandler');
  * @route   GET /api/v1/actividades
  * @access  Private
  * ======================================================
- * Query params opcionales:
- *  - activa=true | false | all
- *  - categoria=CONTROL_MALEZA
- *  - search=texto
  */
 const getActividades = asyncHandler(async (req, res) => {
-  const { activa, categoria, search } = req.query;
+  const { activa, intervencion, search } = req.query;
 
   const filter = {};
 
-  // 🔹 Filtro por estado (por defecto solo activas)
   if (!activa || activa === 'true') {
     filter.activa = true;
   } else if (activa === 'false') {
     filter.activa = false;
   }
-  // Si activa === 'all' no se agrega filtro
 
-  // 🔹 Filtro por categoría
-  if (categoria) {
-    filter.categoria = categoria;
+  if (intervencion) {
+    filter.intervencion = intervencion;
   }
 
-  // 🔹 Búsqueda por código o nombre
   if (search) {
     filter.$or = [
       { codigo: { $regex: search, $options: 'i' } },
@@ -38,8 +31,8 @@ const getActividades = asyncHandler(async (req, res) => {
     ];
   }
 
-  const actividades = await ActividadCatalogo
-    .find(filter)
+  const actividades = await ActividadCatalogo.find(filter)
+    .populate('intervencion', 'codigo nombre activo')
     .sort({ nombre: 1 });
 
   res.status(200).json({
@@ -57,7 +50,8 @@ const getActividades = asyncHandler(async (req, res) => {
  * ======================================================
  */
 const getActividad = asyncHandler(async (req, res) => {
-  const actividad = await ActividadCatalogo.findById(req.params.id);
+  const actividad = await ActividadCatalogo.findById(req.params.id)
+    .populate('intervencion', 'codigo nombre activo');
 
   if (!actividad) {
     throw new ApiError(404, 'Actividad no encontrada');
@@ -71,15 +65,49 @@ const getActividad = asyncHandler(async (req, res) => {
 
 /**
  * ======================================================
+ * @desc    Obtener actividades activas por intervención
+ * @route   GET /api/v1/actividades/intervencion/:intervencionId
+ * @access  Private
+ * ======================================================
+ */
+const getActividadesByIntervencion = asyncHandler(async (req, res) => {
+  const { intervencionId } = req.params;
+
+  const actividades = await ActividadCatalogo.find({
+    intervencion: intervencionId,
+    activa: true
+  })
+    .populate('intervencion', 'codigo nombre activo')
+    .sort({ nombre: 1 });
+
+  res.status(200).json({
+    success: true,
+    count: actividades.length,
+    data: actividades
+  });
+});
+
+/**
+ * ======================================================
  * @desc    Crear una actividad
  * @route   POST /api/v1/actividades
- * @access  Private (Admin, Jefe)
+ * @access  Private
  * ======================================================
  */
 const createActividad = asyncHandler(async (req, res) => {
-  const { codigo } = req.body;
+  const {
+    codigo,
+    nombre,
+    intervencion,
+    precio_base,
+    descripcion,
+    observaciones,
+    activa,
+    categoria,
+    unidad_medida,
+    rendimiento_diario_estimado
+  } = req.body;
 
-  // 🔹 Normalizar código a mayúsculas
   const codigoNormalizado = codigo?.toUpperCase().trim();
 
   const exists = await ActividadCatalogo.findOne({ codigo: codigoNormalizado });
@@ -87,10 +115,32 @@ const createActividad = asyncHandler(async (req, res) => {
     throw new ApiError(409, 'El código de actividad ya existe');
   }
 
+  const intervencionExiste = await Intervencion.findById(intervencion);
+  if (!intervencionExiste) {
+    throw new ApiError(404, 'La intervención seleccionada no existe');
+  }
+
   const actividad = await ActividadCatalogo.create({
-    ...req.body,
-    codigo: codigoNormalizado
+    codigo: codigoNormalizado,
+    nombre: nombre?.trim(),
+    intervencion,
+    precio_base: Number(precio_base) || 0,
+    descripcion: descripcion?.trim() || '',
+    observaciones: observaciones?.trim() || '',
+    activa: activa !== undefined ? Boolean(activa) : true,
+
+    // compatibilidad temporal
+    categoria: categoria || null,
+    unidad_medida: unidad_medida || null,
+    rendimiento_diario_estimado:
+      rendimiento_diario_estimado !== undefined &&
+      rendimiento_diario_estimado !== null &&
+      rendimiento_diario_estimado !== ''
+        ? Number(rendimiento_diario_estimado)
+        : null
   });
+
+  await actividad.populate('intervencion', 'codigo nombre activo');
 
   res.status(201).json({
     success: true,
@@ -103,7 +153,7 @@ const createActividad = asyncHandler(async (req, res) => {
  * ======================================================
  * @desc    Actualizar una actividad
  * @route   PUT /api/v1/actividades/:id
- * @access  Private (Admin, Jefe)
+ * @access  Private
  * ======================================================
  */
 const updateActividad = asyncHandler(async (req, res) => {
@@ -113,7 +163,6 @@ const updateActividad = asyncHandler(async (req, res) => {
     throw new ApiError(404, 'Actividad no encontrada');
   }
 
-  // 🔹 Si actualizan código, validar duplicado
   if (req.body.codigo) {
     const codigoNormalizado = req.body.codigo.toUpperCase().trim();
 
@@ -129,6 +178,17 @@ const updateActividad = asyncHandler(async (req, res) => {
     req.body.codigo = codigoNormalizado;
   }
 
+  if (req.body.intervencion) {
+    const intervencionExiste = await Intervencion.findById(req.body.intervencion);
+    if (!intervencionExiste) {
+      throw new ApiError(404, 'La intervención seleccionada no existe');
+    }
+  }
+
+  if (req.body.precio_base !== undefined) {
+    req.body.precio_base = Number(req.body.precio_base) || 0;
+  }
+
   const actividadActualizada = await ActividadCatalogo.findByIdAndUpdate(
     req.params.id,
     req.body,
@@ -136,7 +196,7 @@ const updateActividad = asyncHandler(async (req, res) => {
       new: true,
       runValidators: true
     }
-  );
+  ).populate('intervencion', 'codigo nombre activo');
 
   res.status(200).json({
     success: true,
@@ -147,9 +207,9 @@ const updateActividad = asyncHandler(async (req, res) => {
 
 /**
  * ======================================================
- * @desc    Desactivar una actividad (Soft Delete)
+ * @desc    Desactivar una actividad
  * @route   DELETE /api/v1/actividades/:id
- * @access  Private (Admin)
+ * @access  Private
  * ======================================================
  */
 const deleteActividad = asyncHandler(async (req, res) => {
@@ -166,6 +226,8 @@ const deleteActividad = asyncHandler(async (req, res) => {
   actividad.activa = false;
   await actividad.save();
 
+  await actividad.populate('intervencion', 'codigo nombre activo');
+
   res.status(200).json({
     success: true,
     message: 'Actividad desactivada exitosamente',
@@ -176,6 +238,7 @@ const deleteActividad = asyncHandler(async (req, res) => {
 module.exports = {
   getActividades,
   getActividad,
+  getActividadesByIntervencion,
   createActividad,
   updateActividad,
   deleteActividad

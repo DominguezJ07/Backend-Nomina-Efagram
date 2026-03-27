@@ -1,11 +1,13 @@
 const express = require('express');
-const { body } = require('express-validator');
+const { body, param } = require('express-validator');
 const { validateRequest, validateMongoId } = require('../../middlewares/validateRequest');
 const { authenticate, authorize } = require('../../middlewares/authMiddleware');
-const { ROLES, UNIDADES_MEDIDA } = require('../../config/constants');
+const { ROLES } = require('../../config/constants');
+
 const {
   getActividades,
   getActividad,
+  getActividadesByIntervencion,
   createActividad,
   updateActividad,
   deleteActividad
@@ -13,9 +15,6 @@ const {
 
 const router = express.Router();
 
-/* =====================================================
-   🔹 VALIDACIÓN PARA CREAR ACTIVIDAD
-===================================================== */
 const actividadCreateValidation = [
   body('codigo')
     .notEmpty()
@@ -30,29 +29,16 @@ const actividadCreateValidation = [
     .isLength({ min: 3, max: 200 })
     .withMessage('El nombre debe tener entre 3 y 200 caracteres'),
 
-  body('categoria')
-    .optional()
-    .isIn([
-      'PREPARACION_TERRENO',
-      'SIEMBRA',
-      'MANTENIMIENTO',
-      'CONTROL_MALEZA',
-      'FERTILIZACION',
-      'PODAS',
-      'OTRO'
-    ])
-    .withMessage('Categoría inválida'),
-
-  body('unidad_medida')
+  body('intervencion')
     .notEmpty()
-    .withMessage('La unidad de medida es obligatoria')
-    .isIn(Object.values(UNIDADES_MEDIDA))
-    .withMessage('Unidad de medida inválida'),
+    .withMessage('La intervención es obligatoria')
+    .isMongoId()
+    .withMessage('La intervención no es válida'),
 
-  body('rendimiento_diario_estimado')
-    .optional()
+  body('precio_base')
+    .optional({ values: 'falsy' })
     .isFloat({ min: 0 })
-    .withMessage('El rendimiento debe ser un número positivo'),
+    .withMessage('El precio base no puede ser negativo'),
 
   body('descripcion')
     .optional()
@@ -65,17 +51,7 @@ const actividadCreateValidation = [
   validateRequest
 ];
 
-/* =====================================================
-   🔹 VALIDACIÓN PARA ACTUALIZAR ACTIVIDAD
-   FIX: Se eliminó body('codigo').not().exists() que
-   bloqueaba cualquier PUT que incluyera el campo codigo,
-   causando un error 400 de validación al editar.
-   Ahora codigo es opcional — si viene en el body el
-   controller ya maneja la lógica de duplicados.
-===================================================== */
 const actividadUpdateValidation = [
-  // FIX: antes era .not().exists() → rechazaba TODA edición que mandara codigo
-  // Ahora es opcional para no bloquear el formulario
   body('codigo')
     .optional({ values: 'falsy' })
     .trim()
@@ -87,28 +63,15 @@ const actividadUpdateValidation = [
     .isLength({ min: 3, max: 200 })
     .withMessage('El nombre debe tener entre 3 y 200 caracteres'),
 
-  body('categoria')
+  body('intervencion')
     .optional()
-    .isIn([
-      'PREPARACION_TERRENO',
-      'SIEMBRA',
-      'MANTENIMIENTO',
-      'CONTROL_MALEZA',
-      'FERTILIZACION',
-      'PODAS',
-      'OTRO'
-    ])
-    .withMessage('Categoría inválida'),
+    .isMongoId()
+    .withMessage('La intervención no es válida'),
 
-  body('unidad_medida')
-    .optional()
-    .isIn(Object.values(UNIDADES_MEDIDA))
-    .withMessage('Unidad de medida inválida'),
-
-  body('rendimiento_diario_estimado')
-    .optional()
+  body('precio_base')
+    .optional({ values: 'falsy' })
     .isFloat({ min: 0 })
-    .withMessage('El rendimiento debe ser un número positivo'),
+    .withMessage('El precio base no puede ser negativo'),
 
   body('descripcion')
     .optional()
@@ -121,22 +84,19 @@ const actividadUpdateValidation = [
   validateRequest
 ];
 
-/* =====================================================
-   🔹 AUTENTICACIÓN GLOBAL
-===================================================== */
 router.use(authenticate);
 
-/* =====================================================
-   🔹 RUTAS DE CONSULTA
-===================================================== */
 router.get('/', getActividades);
+
+router.get(
+  '/intervencion/:intervencionId',
+  param('intervencionId').isMongoId().withMessage('Intervención inválida'),
+  validateRequest,
+  getActividadesByIntervencion
+);
+
 router.get('/:id', validateMongoId('id'), getActividad);
 
-/* =====================================================
-   🔹 RUTAS DE MODIFICACIÓN
-===================================================== */
-
-// Crear actividad
 router.post(
   '/',
   authorize(ROLES.ADMIN_SISTEMA, ROLES.JEFE_OPERACIONES),
@@ -144,7 +104,6 @@ router.post(
   createActividad
 );
 
-// Actualizar actividad
 router.put(
   '/:id',
   authorize(ROLES.ADMIN_SISTEMA, ROLES.JEFE_OPERACIONES),
@@ -153,7 +112,6 @@ router.put(
   updateActividad
 );
 
-// Desactivar actividad (soft delete)
 router.delete(
   '/:id',
   authorize(ROLES.ADMIN_SISTEMA),
