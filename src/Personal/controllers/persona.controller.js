@@ -1,25 +1,18 @@
 const Persona = require('../models/persona.model');
 const personaService = require('../services/persona.service');
+const personaBulkService = require('../services/personaBulk.service');
+const Finca = require('../../Territorial/models/finca.model');
+const Proceso = require('../../Catalogos/models/proceso.model');
 const { asyncHandler, ApiError } = require('../../middlewares/errorHandler');
 
 /**
- * @desc    Obtener todas las personas
+ * @desc    Obtener listado de personas
  * @route   GET /api/v1/personas
  * @access  Private
  */
 const getPersonas = asyncHandler(async (req, res) => {
-  const { estado, cargo } = req.query;
-
-  const filter = {};
-  if (estado) filter.estado = estado;
-  if (cargo) filter.cargo = cargo;
-
-  const personas = await Persona.find(filter)
-    .populate('usuario', 'email roles')
-    .populate('finca', 'nombre codigo')
-    .populate('proceso', 'nombre codigo')
-    .populate('supervisor', 'nombres apellidos num_doc cargo')
-    .sort({ apellidos: 1 });
+  const filters = req.query;
+  const personas = await personaService.getPersonas(filters);
 
   res.status(200).json({
     success: true,
@@ -34,11 +27,7 @@ const getPersonas = asyncHandler(async (req, res) => {
  * @access  Private
  */
 const getPersona = asyncHandler(async (req, res) => {
-  const persona = await Persona.findById(req.params.id)
-    .populate('usuario', 'email roles')
-    .populate('finca', 'nombre codigo')
-    .populate('proceso', 'nombre codigo')
-    .populate('supervisor', 'nombres apellidos num_doc cargo');
+  const persona = await personaService.getPersonaById(req.params.id);
 
   if (!persona) {
     throw new ApiError(404, 'Persona no encontrada');
@@ -51,15 +40,12 @@ const getPersona = asyncHandler(async (req, res) => {
 });
 
 /**
- * @desc    Crear una persona
+ * @desc    Crear persona
  * @route   POST /api/v1/personas
- * @access  Private (Admin, RRHH)
+ * @access  Private
  */
 const createPersona = asyncHandler(async (req, res) => {
-  // Validar documento único
-  await personaService.validateDocumentoUnico(req.body.num_doc);
-
-  const persona = await Persona.create(req.body);
+  const persona = await personaService.createPersona(req.body);
 
   res.status(201).json({
     success: true,
@@ -69,27 +55,12 @@ const createPersona = asyncHandler(async (req, res) => {
 });
 
 /**
- * @desc    Actualizar una persona
+ * @desc    Actualizar persona
  * @route   PUT /api/v1/personas/:id
- * @access  Private (Admin, RRHH)
+ * @access  Private
  */
 const updatePersona = asyncHandler(async (req, res) => {
-  let persona = await personaService.validatePersonaExists(req.params.id);
-
-  // Si se cambia el documento, validar que sea único
-  if (req.body.num_doc && req.body.num_doc !== persona.num_doc) {
-    await personaService.validateDocumentoUnico(req.body.num_doc, req.params.id);
-  }
-
-  persona = await Persona.findByIdAndUpdate(
-    req.params.id,
-    req.body,
-    { new: true, runValidators: true }
-  )
-    .populate('usuario', 'email roles')
-    .populate('finca', 'nombre codigo')
-    .populate('proceso', 'nombre codigo')
-    .populate('supervisor', 'nombres apellidos num_doc cargo');
+  const persona = await personaService.updatePersona(req.params.id, req.body);
 
   res.status(200).json({
     success: true,
@@ -99,18 +70,12 @@ const updatePersona = asyncHandler(async (req, res) => {
 });
 
 /**
- * @desc    Retirar una persona
+ * @desc    Retirar persona
  * @route   POST /api/v1/personas/:id/retirar
- * @access  Private (Admin, RRHH)
+ * @access  Private
  */
 const retirarPersona = asyncHandler(async (req, res) => {
-  const { motivo } = req.body;
-
-  if (!motivo) {
-    throw new ApiError(400, 'El motivo de retiro es obligatorio');
-  }
-
-  const persona = await personaService.retirarPersona(req.params.id, motivo);
+  const persona = await personaService.retirarPersona(req.params.id, req.body.motivo);
 
   res.status(200).json({
     success: true,
@@ -122,16 +87,10 @@ const retirarPersona = asyncHandler(async (req, res) => {
 /**
  * @desc    Vincular persona con usuario
  * @route   POST /api/v1/personas/:id/vincular-usuario
- * @access  Private (Admin)
+ * @access  Private
  */
 const vincularUsuario = asyncHandler(async (req, res) => {
-  const { usuarioId } = req.body;
-
-  if (!usuarioId) {
-    throw new ApiError(400, 'El ID del usuario es obligatorio');
-  }
-
-  const persona = await personaService.vincularUsuario(req.params.id, usuarioId);
+  const persona = await personaService.vincularUsuario(req.params.id, req.body.usuarioId);
 
   res.status(200).json({
     success: true,
@@ -141,48 +100,76 @@ const vincularUsuario = asyncHandler(async (req, res) => {
 });
 
 /**
- * @desc    Buscar personas por cédula o nombre (para asignación a cuadrillas/contratos)
- * @route   GET /api/v1/personas/buscar?q=texto&estado=ACTIVO
+ * @desc    Buscar personas
+ * @route   GET /api/v1/personas/buscar
  * @access  Private
  */
 const buscarPersonas = asyncHandler(async (req, res) => {
-  const { q, estado } = req.query;
+  const { q } = req.query;
 
   if (!q || !q.trim()) {
-    return res.status(400).json({
-      success: false,
-      message: 'El parámetro de búsqueda "q" es obligatorio'
-    });
+    throw new ApiError(400, 'Debes proporcionar un término de búsqueda');
   }
 
-  const regex = new RegExp(q.trim(), 'i');
-
-  const filter = {
-    $or: [
-      { num_doc: regex },
-      { nombres: regex },
-      { apellidos: regex }
-    ]
-  };
-
-  // Por defecto solo activos, pero se puede forzar otro estado
-  if (estado) {
-    filter.estado = estado;
-  } else {
-    filter.estado = 'ACTIVO';
-  }
-
-  const personas = await Persona.find(filter)
-    .select('nombres apellidos num_doc tipo_doc cargo telefono estado finca proceso')
-    .populate('finca', 'nombre codigo')
-    .populate('proceso', 'nombre codigo')
-    .sort({ apellidos: 1 })
-    .limit(50);
+  const personas = await personaService.buscarPersonas(q.trim());
 
   res.status(200).json({
     success: true,
     count: personas.length,
     data: personas
+  });
+});
+
+/**
+ * @desc    Obtener data para plantilla de carga masiva de personal
+ * @route   GET /api/v1/personas/bulk/template-data
+ * @access  Private
+ */
+const getPersonasBulkTemplateData = asyncHandler(async (_req, res) => {
+  const [personas, fincas, procesos, supervisores] = await Promise.all([
+    Persona.find({})
+      .populate('finca', 'nombre codigo')
+      .populate('proceso', 'nombre codigo')
+      .populate('supervisor', 'nombres apellidos num_doc')
+      .sort({ apellidos: 1 })
+      .lean(),
+    Finca.find({ activa: true }).sort({ nombre: 1 }).lean(),
+    Proceso.find({ activo: true }).sort({ nombre: 1 }).lean(),
+    Persona.find({ estado: 'ACTIVO' })
+      .select('nombres apellidos num_doc cargo')
+      .sort({ apellidos: 1 })
+      .lean(),
+  ]);
+
+  res.status(200).json({
+    success: true,
+    data: {
+      personas,
+      fincas,
+      procesos,
+      supervisores,
+    }
+  });
+});
+
+/**
+ * @desc    Procesar carga masiva de personal
+ * @route   POST /api/v1/personas/bulk/upsert
+ * @access  Private
+ */
+const bulkUpsertPersonas = asyncHandler(async (req, res) => {
+  const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+
+  if (!rows.length) {
+    throw new ApiError(400, 'Debes enviar al menos una fila para procesar');
+  }
+
+  const result = await personaBulkService.processRows(rows);
+
+  res.status(200).json({
+    success: true,
+    message: 'Carga masiva de personal procesada',
+    data: result
   });
 });
 
@@ -193,5 +180,7 @@ module.exports = {
   updatePersona,
   retirarPersona,
   vincularUsuario,
-  buscarPersonas
+  buscarPersonas,
+  getPersonasBulkTemplateData,
+  bulkUpsertPersonas
 };

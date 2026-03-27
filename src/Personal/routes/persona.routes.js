@@ -10,12 +10,13 @@ const {
   updatePersona,
   retirarPersona,
   vincularUsuario,
-  buscarPersonas
+  buscarPersonas,
+  getPersonasBulkTemplateData,
+  bulkUpsertPersonas
 } = require('../controllers/persona.controller');
 
 const router = express.Router();
 
-// Validaciones
 const personaValidation = [
   body('tipo_doc')
     .notEmpty()
@@ -63,15 +64,24 @@ const personaValidation = [
   validateRequest
 ];
 
-// Todas las rutas requieren autenticación
 router.use(authenticate);
 
-// Rutas de consulta (todos los roles autenticados)
+router.get(
+  '/bulk/template-data',
+  authorize(ROLES.ADMIN_SISTEMA, ROLES.TALENTO_HUMANO),
+  getPersonasBulkTemplateData
+);
+
+router.post(
+  '/bulk/upsert',
+  authorize(ROLES.ADMIN_SISTEMA, ROLES.TALENTO_HUMANO),
+  bulkUpsertPersonas
+);
+
 router.get('/', getPersonas);
-router.get('/buscar', buscarPersonas);   // ← búsqueda por cédula o nombre
+router.get('/buscar', buscarPersonas);
 router.get('/:id', validateMongoId('id'), getPersona);
 
-// Rutas de modificación (solo Admin y RRHH)
 router.post(
   '/',
   authorize(ROLES.ADMIN_SISTEMA, ROLES.TALENTO_HUMANO),
