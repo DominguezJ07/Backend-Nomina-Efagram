@@ -45,7 +45,7 @@ class FincaBulkService {
       throw new Error('El nucleo_id es obligatorio');
     }
 
-    const nucleo = await Nucleo.findById(nucleoId).populate('zona');
+    const nucleo = await Nucleo.findById(nucleoId);
     if (!nucleo) {
       throw new Error('El núcleo no existe');
     }
@@ -69,19 +69,18 @@ class FincaBulkService {
       try {
         const operacion = this.normalizeOperacion(row.operacion);
         const fincaId = String(row.finca_id || '').trim();
-        const fincaNombre = this.normalizeNombre(row.finca_nombre);
+        const nombre = this.normalizeNombre(row.nombre);
         const nucleoId = String(row.nucleo_id || '').trim();
-        let fincaCodigo = this.normalizeCodigo(row.finca_codigo);
+        let codigo = this.normalizeCodigo(row.codigo);
         const activa = this.normalizeBoolean(row.activa, true);
-        const descripcion = String(row.descripcion || '').trim();
         const areaTotal = this.normalizeNumber(row.area_total);
 
         if (!operacion || !['CREAR', 'ACTUALIZAR'].includes(operacion)) {
           throw new Error('La operación debe ser CREAR o ACTUALIZAR');
         }
 
-        if (!fincaNombre) {
-          throw new Error('El nombre de la finca es obligatorio');
+        if (!nombre) {
+          throw new Error('El nombre es obligatorio');
         }
 
         const nucleo = await this.validateNucleo(nucleoId);
@@ -91,26 +90,25 @@ class FincaBulkService {
         }
 
         if (operacion === 'CREAR') {
-          if (!fincaCodigo) {
+          if (!codigo) {
             const next = await codigoTerritorialService.getNextFincaCodigo(nucleo._id);
-            fincaCodigo = next.raw;
+            codigo = next.raw;
           }
 
           const existe = await Finca.findOne({
             nucleo: nucleo._id,
-            codigo: fincaCodigo,
+            codigo,
           });
 
           if (existe) {
-            throw new Error(`Ya existe una finca con código ${fincaCodigo} en ese núcleo`);
+            throw new Error(`Ya existe una finca con código ${codigo} en ese núcleo`);
           }
 
           await Finca.create({
-            codigo: fincaCodigo,
-            nombre: fincaNombre,
+            codigo,
+            nombre,
             nucleo: nucleo._id,
             activa,
-            descripcion,
             area_total: areaTotal,
           });
 
@@ -127,25 +125,24 @@ class FincaBulkService {
             throw new Error('La finca a actualizar no existe');
           }
 
-          if (!fincaCodigo) {
-            fincaCodigo = finca.codigo;
+          if (!codigo) {
+            codigo = finca.codigo;
           }
 
           const existeOtra = await Finca.findOne({
             _id: { $ne: finca._id },
             nucleo: nucleo._id,
-            codigo: fincaCodigo,
+            codigo,
           });
 
           if (existeOtra) {
-            throw new Error(`Ya existe otra finca con código ${fincaCodigo} en ese núcleo`);
+            throw new Error(`Ya existe otra finca con código ${codigo} en ese núcleo`);
           }
 
-          finca.codigo = fincaCodigo;
-          finca.nombre = fincaNombre;
+          finca.codigo = codigo;
+          finca.nombre = nombre;
           finca.nucleo = nucleo._id;
           finca.activa = activa;
-          finca.descripcion = descripcion;
           finca.area_total = areaTotal;
 
           await finca.save();
