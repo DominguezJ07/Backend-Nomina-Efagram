@@ -1,6 +1,9 @@
 const Finca = require('../models/finca.model');
+const Zona = require('../models/zona.model');
+const Nucleo = require('../models/nucleo.model');
 const territorialService = require('../services/territorial.service');
 const codigoTerritorialService = require('../services/codigoTerritorial.service');
+const fincaBulkService = require('../services/fincaBulk.service');
 const { asyncHandler, ApiError } = require('../../middlewares/errorHandler');
 
 /**
@@ -10,7 +13,7 @@ const { asyncHandler, ApiError } = require('../../middlewares/errorHandler');
  */
 const getFincas = asyncHandler(async (req, res) => {
   const { activa, nucleo } = req.query;
-  
+
   const filter = {};
   if (activa !== undefined) filter.activa = activa === 'true';
   if (nucleo) filter.nucleo = nucleo;
@@ -48,6 +51,58 @@ const getNextFincaCodigo = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     data: next
+  });
+});
+
+/**
+ * @desc    Obtener data para plantilla de carga masiva de fincas
+ * @route   GET /api/v1/fincas/bulk/template-data
+ * @access  Private
+ */
+const getFincasBulkTemplateData = asyncHandler(async (_req, res) => {
+  const [zonas, nucleos, fincas] = await Promise.all([
+    Zona.find({}).sort({ codigo: 1 }).lean(),
+    Nucleo.find({})
+      .populate('zona')
+      .sort({ codigo: 1 })
+      .lean(),
+    Finca.find({})
+      .populate({
+        path: 'nucleo',
+        populate: { path: 'zona' }
+      })
+      .sort({ codigo: 1 })
+      .lean()
+  ]);
+
+  res.status(200).json({
+    success: true,
+    data: {
+      zonas,
+      nucleos,
+      fincas
+    }
+  });
+});
+
+/**
+ * @desc    Procesar carga masiva de fincas
+ * @route   POST /api/v1/fincas/bulk/upsert
+ * @access  Private
+ */
+const bulkUpsertFincas = asyncHandler(async (req, res) => {
+  const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+
+  if (!rows.length) {
+    throw new ApiError(400, 'Debes enviar al menos una fila para procesar');
+  }
+
+  const result = await fincaBulkService.processRows(rows);
+
+  res.status(200).json({
+    success: true,
+    message: 'Carga masiva procesada',
+    data: result
   });
 });
 
@@ -178,6 +233,8 @@ const getLotesByFinca = asyncHandler(async (req, res) => {
 module.exports = {
   getFincas,
   getNextFincaCodigo,
+  getFincasBulkTemplateData,
+  bulkUpsertFincas,
   getFinca,
   createFinca,
   updateFinca,

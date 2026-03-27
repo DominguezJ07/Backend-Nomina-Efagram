@@ -6,6 +6,8 @@ const { ROLES } = require('../../config/constants');
 const {
   getFincas,
   getNextFincaCodigo,
+  getFincasBulkTemplateData,
+  bulkUpsertFincas,
   getFinca,
   createFinca,
   updateFinca,
@@ -68,7 +70,28 @@ const updateFincaValidation = [
 ];
 
 router.get('/', getFincas);
-router.get('/next-code', authenticate, authorize(ROLES.ADMIN_SISTEMA, ROLES.JEFE_OPERACIONES, ROLES.ADMIN_FINCA), getNextFincaCodigo);
+
+router.get(
+  '/next-code',
+  authenticate,
+  authorize(ROLES.ADMIN_SISTEMA, ROLES.JEFE_OPERACIONES, ROLES.ADMIN_FINCA),
+  getNextFincaCodigo
+);
+
+router.get(
+  '/bulk/template-data',
+  authenticate,
+  authorize(ROLES.ADMIN_SISTEMA, ROLES.JEFE_OPERACIONES, ROLES.ADMIN_FINCA),
+  getFincasBulkTemplateData
+);
+
+router.post(
+  '/bulk/upsert',
+  authenticate,
+  authorize(ROLES.ADMIN_SISTEMA, ROLES.JEFE_OPERACIONES, ROLES.ADMIN_FINCA),
+  bulkUpsertFincas
+);
+
 router.get('/:id', validateMongoId('id'), getFinca);
 router.get('/:id/lotes', validateMongoId('id'), getLotesByFinca);
 
