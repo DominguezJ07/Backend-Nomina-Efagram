@@ -1,22 +1,3 @@
-// ==========================================
-// CONTROLADOR: PROGRAMACIÓN — VERSIÓN FINAL
-// ==========================================
-// BUGS CORREGIDOS:
-//
-// BUG #1 — catch devuelve 400 con error.message genérico:
-//   Cualquier error interno (DB desconectada, validación Mongoose, etc.)
-//   retornaba 400 con el mensaje genérico "Error al crear programación".
-//   FIX: devolver el error.message real para que el frontend lo muestre.
-//
-// BUG #2 — setHours usa hora local en vez de UTC:
-//   En servidores con zona UTC (Render), setHours(12) funciona bien.
-//   Pero para ser consistente con el frontend que envía 'T12:00:00.000Z',
-//   FIX: usar setUTCHours(12,0,0,0).
-//
-// BUG #3 — checkDB para evitar que errores de MongoDB retornen 400:
-//   Si MongoDB no está conectada, las operaciones fallan con MongoError
-//   que el catch atrapaba y retornaba como 400.
-//   FIX: verificar readyState antes de cada operación → 503 si no conectada.
 
 const mongoose                   = require('mongoose');
 const Programacion               = require('../models/programacion.model');
@@ -35,6 +16,33 @@ const checkDB = (res) => {
   return true;
 };
 
+const normalizarFechaUTC = (fecha) => {
+  const d = new Date(fecha);
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+};
+
+const obtenerEstadoRegistroHoyMap = async (programacionIds = []) => {
+  if (!programacionIds.length) return new Map();
+
+  const hoy = normalizarFechaUTC(new Date());
+  const manana = new Date(hoy);
+  manana.setUTCDate(manana.getUTCDate() + 1);
+
+  const registrosHoy = await RegistroDiarioProgramacion.find({
+    programacion: { $in: programacionIds },
+    fecha: { $gte: hoy, $lt: manana },
+  })
+    .select('programacion estado fecha')
+    .lean();
+
+  const estadoMap = new Map();
+  for (const reg of registrosHoy) {
+    estadoMap.set(String(reg.programacion), reg.estado || 'PENDIENTE');
+  }
+
+  return estadoMap;
+};
+
 // ── 1. OBTENER TODAS LAS PROGRAMACIONES ─────────────────────────────
 exports.getProgramaciones = async (req, res) => {
   if (!checkDB(res)) return;
@@ -45,23 +53,35 @@ exports.getProgramaciones = async (req, res) => {
       filtro.estado = estado;
     }
 
-    const total          = await Programacion.countDocuments(filtro);
+    const total = await Programacion.countDocuments(filtro);
     const programaciones = await Programacion.find(filtro)
-      .populate('contrato',  'codigo')
+      .populate('contrato', 'codigo')
       .populate('actividad', 'nombre')
-      .populate('finca',     'nombre')
-      .populate('lote',      'nombre')
+      .populate('finca', 'nombre')
+      .populate('lote', 'nombre')
       .skip(parseInt(skip))
       .limit(parseInt(limit))
       .sort({ createdAt: -1 });
 
+    const estadoHoyMap = await obtenerEstadoRegistroHoyMap(
+      programaciones.map((p) => p._id)
+    );
+
+    const programacionesEnriquecidas = programaciones.map((p) => {
+      const obj = p.toObject ? p.toObject() : p;
+      return {
+        ...obj,
+        registro_hoy_estado: estadoHoyMap.get(String(p._id)) || null,
+      };
+    });
+
     res.json({
       success: true,
       data: {
-        programaciones,
+        programaciones: programacionesEnriquecidas,
         pagination: {
           total,
-          skip:  parseInt(skip),
+          skip: parseInt(skip),
           limit: parseInt(limit),
           pages: Math.ceil(total / parseInt(limit)),
         },
@@ -71,7 +91,7 @@ exports.getProgramaciones = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error al obtener programaciones',
-      error:   error.message,
+      error: error.message,
     });
   }
 };
@@ -114,8 +134,6 @@ exports.createProgramacion = async (req, res) => {
 
     const usuario_id = req.user?.id || null;
 
-    // Cargar contrato completo
-    // ✅ FIX BUG #4: poblar 'actividades.actividad' (path correcto del subdocumento)
     const contrato = await Contrato.findById(contrato_id)
       .populate('finca')
       .populate('actividades.actividad', 'codigo nombre unidad_medida')
@@ -132,11 +150,8 @@ exports.createProgramacion = async (req, res) => {
       });
     }
 
-    // ✅ FIX BUG #4: actividades es array de subdocs { actividad, cantidad, precio_unitario }
-    // El subdoc tiene _id:false → actividad._id es undefined.
-    // La referencia real es actividadSubdoc.actividad (ObjectId o doc populado)
     const actividadSubdoc = contrato.actividades?.[0];
-    const lote            = contrato.lotes?.[0];
+    const lote = contrato.lotes?.[0];
 
     if (!actividadSubdoc) {
       return res.status(400).json({
@@ -157,21 +172,13 @@ exports.createProgramacion = async (req, res) => {
       });
     }
 
-    // ✅ FIX BUG #4 v2: extraer el ObjectId correcto de la actividad
-    // Casos posibles:
-    // 1. populate exitoso  → actividadSubdoc.actividad = { _id, nombre, ... }  → usar ._id
-    // 2. populate null     → actividadSubdoc.actividad = null (doc eliminado del catálogo)
-    //                        pero el ObjectId original sigue en el subdoc sin poblar
-    //                        → necesitamos el valor sin popular
-    // Para acceder al ObjectId sin popular usamos contrato.$__ (estado interno de Mongoose)
-    // o simplemente leemos el subdoc del doc original sin populate
     const contratoRaw = await Contrato.findById(contrato_id).lean();
     const actividadIdRaw = contratoRaw?.actividades?.[0]?.actividad;
 
     const actividadId =
-      actividadSubdoc.actividad?._id   // doc populado → su _id
-      ?? actividadSubdoc.actividad     // ObjectId directo si no se populó
-      ?? actividadIdRaw;               // fallback: leer del doc sin populate
+      actividadSubdoc.actividad?._id
+      ?? actividadSubdoc.actividad
+      ?? actividadIdRaw;
 
     if (!actividadId) {
       return res.status(400).json({
@@ -180,42 +187,44 @@ exports.createProgramacion = async (req, res) => {
       });
     }
 
-    // ✅ FIX BUG #2: usar UTC para evitar desfase de zona horaria
     const fechaInicio = new Date(fecha_inicial);
     fechaInicio.setUTCHours(12, 0, 0, 0);
 
     const fechaFin = new Date(fechaInicio);
-    fechaFin.setDate(fechaFin.getDate() + 6); // 7 días: día 0 a día 6
+    fechaFin.setUTCDate(fechaFin.getUTCDate() + 6);
 
     const cantProyectada = parseFloat(cantidad_proyectada) || 1;
-    const valProyectado  = parseFloat(valor_proyectado)   || 0;
+    const valProyectado = parseFloat(valor_proyectado) || 0;
 
-    // Crear con fecha_final explícita (evita conflicto con pre-save hook)
     const programacion = await Programacion.create({
-      contrato:            contrato_id,
-      fecha_inicial:       fechaInicio,
-      fecha_final:         fechaFin,
-      actividad:           actividadId,        // ✅ FIX BUG #4
-      finca:               contrato.finca._id,
-      lote:                lote._id,
+      contrato: contrato_id,
+      fecha_inicial: fechaInicio,
+      fecha_final: fechaFin,
+      actividad: actividadId,
+      finca: contrato.finca._id,
+      lote: lote._id,
       cantidad_proyectada: cantProyectada,
-      valor_proyectado:    valProyectado,
-      creado_por:          usuario_id,
-      observaciones:       observaciones || '',
+      valor_proyectado: valProyectado,
+      creado_por: usuario_id,
+      observaciones: observaciones || '',
     });
 
-    // Crear 7 registros diarios
     const registrosData = Array.from({ length: 7 }, (_, i) => {
       const fecha = new Date(fechaInicio);
-      fecha.setDate(fecha.getDate() + i);
+      fecha.setUTCDate(fecha.getUTCDate() + i);
+      fecha.setUTCHours(12, 0, 0, 0);
+
       return {
-        programacion:       programacion._id,
+        programacion: programacion._id,
         fecha,
         cantidad_ejecutada: 0,
-        estado:             'PENDIENTE',
-        registrado_por:     usuario_id,
-        validado:           false,
-        observaciones:      '',
+        estado: 'PENDIENTE',
+        registrado_por: usuario_id,
+        validado: false,
+        observaciones: '',
+        tiempo_detenido: 0,
+        motivo_detencion: null,
+        motivo_detencion_otro: '',
       };
     });
 
@@ -224,23 +233,21 @@ exports.createProgramacion = async (req, res) => {
       { ordered: true }
     );
 
-    // Poblar para respuesta completa
     await programacion.populate([
-      { path: 'contrato',  select: 'codigo' },
+      { path: 'contrato', select: 'codigo' },
       { path: 'actividad', select: 'nombre' },
-      { path: 'finca',     select: 'nombre' },
-      { path: 'lote',      select: 'nombre' },
+      { path: 'finca', select: 'nombre' },
+      { path: 'lote', select: 'nombre' },
     ]);
 
     res.status(201).json({
       success: true,
       message: 'Programación creada exitosamente. Se generaron 7 registros diarios.',
-      data:    { programacion, registros_diarios: registrosDiarios },
+      data: { programacion, registros_diarios: registrosDiarios },
     });
   } catch (error) {
     console.error('Error createProgramacion:', error);
 
-    // Error de duplicado: mismo contrato + misma fecha
     if (error.code === 11000) {
       return res.status(409).json({
         success: false,
@@ -248,11 +255,10 @@ exports.createProgramacion = async (req, res) => {
       });
     }
 
-    // ✅ FIX BUG #1: devolver el mensaje de error REAL (no genérico)
     res.status(400).json({
       success: false,
       message: error.message || 'Error al crear programación',
-      error:   error.message,
+      error: error.message,
     });
   }
 };
@@ -270,11 +276,11 @@ exports.updateProgramacion = async (req, res) => {
     }
 
     if (observaciones !== undefined) programacion.observaciones = observaciones;
-    if (estado        !== undefined) programacion.estado        = estado;
+    if (estado !== undefined) programacion.estado = estado;
     programacion.actualizado_por = usuario_id;
 
     await programacion.save();
-    await programacion.populate('contrato',  'codigo');
+    await programacion.populate('contrato', 'codigo');
     await programacion.populate('actividad', 'nombre');
 
     res.json({ success: true, message: 'Programación actualizada', data: programacion });
@@ -302,10 +308,10 @@ exports.getResumen = async (req, res) => {
   if (!checkDB(res)) return;
   try {
     const programacion = await Programacion.findById(req.params.id)
-      .populate('contrato',  'codigo')
+      .populate('contrato', 'codigo')
       .populate('actividad', 'nombre')
-      .populate('finca',     'nombre')
-      .populate('lote',      'nombre');
+      .populate('finca', 'nombre')
+      .populate('lote', 'nombre');
 
     if (!programacion) {
       return res.status(404).json({ success: false, message: 'Programación no encontrada' });
@@ -320,26 +326,26 @@ exports.getResumen = async (req, res) => {
     res.json({
       success: true,
       data: {
-        _id:                      programacion._id,
-        contrato:                 programacion.contrato?.codigo,
-        actividad:                programacion.actividad?.nombre,
-        finca:                    programacion.finca?.nombre,
-        lote:                     programacion.lote?.nombre,
-        fecha_inicial:            programacion.fecha_inicial,
-        fecha_final:              programacion.fecha_final,
-        semana:                   programacion.semana,
-        estado:                   programacion.estado,
-        cantidad_proyectada:      programacion.cantidad_proyectada,
-        valor_proyectado:         programacion.valor_proyectado,
+        _id: programacion._id,
+        contrato: programacion.contrato?.codigo,
+        actividad: programacion.actividad?.nombre,
+        finca: programacion.finca?.nombre,
+        lote: programacion.lote?.nombre,
+        fecha_inicial: programacion.fecha_inicial,
+        fecha_final: programacion.fecha_final,
+        semana: programacion.semana,
+        estado: programacion.estado,
+        cantidad_proyectada: programacion.cantidad_proyectada,
+        valor_proyectado: programacion.valor_proyectado,
         cantidad_ejecutada_total: programacion.cantidad_ejecutada_total,
-        porcentaje_cumplimiento:  programacion.porcentaje_cumplimiento,
+        porcentaje_cumplimiento: programacion.porcentaje_cumplimiento,
         registros_diarios: registros.map(r => ({
-          _id:                r._id,
-          fecha:              r.fecha,
-          dia:                DIAS[new Date(r.fecha).getDay()],
+          _id: r._id,
+          fecha: r.fecha,
+          dia: DIAS[new Date(r.fecha).getDay()],
           cantidad_ejecutada: r.cantidad_ejecutada,
-          estado:             r.estado,
-          observaciones:      r.observaciones,
+          estado: r.estado,
+          observaciones: r.observaciones,
         })),
       },
     });
@@ -354,11 +360,23 @@ exports.getProgramacionesPorContrato = async (req, res) => {
   try {
     const programaciones = await Programacion.find({ contrato: req.params.contrato_id })
       .populate('actividad', 'nombre')
-      .populate('finca',     'nombre')
-      .populate('lote',      'nombre')
+      .populate('finca', 'nombre')
+      .populate('lote', 'nombre')
       .sort({ fecha_inicial: -1 });
 
-    res.json({ success: true, data: programaciones });
+    const estadoHoyMap = await obtenerEstadoRegistroHoyMap(
+      programaciones.map((p) => p._id)
+    );
+
+    const programacionesEnriquecidas = programaciones.map((p) => {
+      const obj = p.toObject ? p.toObject() : p;
+      return {
+        ...obj,
+        registro_hoy_estado: estadoHoyMap.get(String(p._id)) || null,
+      };
+    });
+
+    res.json({ success: true, data: programacionesEnriquecidas });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error', error: error.message });
   }
@@ -386,13 +404,25 @@ exports.getProgramacionesActivas = async (req, res) => {
   if (!checkDB(res)) return;
   try {
     const programaciones = await Programacion.find({ estado: 'ACTIVA' })
-      .populate('contrato',  'codigo')
+      .populate('contrato', 'codigo')
       .populate('actividad', 'nombre')
-      .populate('finca',     'nombre')
-      .populate('lote',      'nombre')
+      .populate('finca', 'nombre')
+      .populate('lote', 'nombre')
       .sort({ fecha_final: 1 });
 
-    res.json({ success: true, data: programaciones });
+    const estadoHoyMap = await obtenerEstadoRegistroHoyMap(
+      programaciones.map((p) => p._id)
+    );
+
+    const programacionesEnriquecidas = programaciones.map((p) => {
+      const obj = p.toObject ? p.toObject() : p;
+      return {
+        ...obj,
+        registro_hoy_estado: estadoHoyMap.get(String(p._id)) || null,
+      };
+    });
+
+    res.json({ success: true, data: programacionesEnriquecidas });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error', error: error.message });
   }

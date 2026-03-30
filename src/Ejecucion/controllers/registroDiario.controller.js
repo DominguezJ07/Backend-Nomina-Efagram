@@ -46,7 +46,6 @@ const getRegistros = asyncHandler(async (req, res) => {
 const getRegistro = asyncHandler(async (req, res) => {
   const registro = await RegistroDiario.findById(req.params.id)
     .populate('trabajador')
-    // PAL con actividad y lote populados
     .populate({
       path: 'proyecto_actividad_lote',
       populate: [
@@ -54,7 +53,6 @@ const getRegistro = asyncHandler(async (req, res) => {
         { path: 'lote' }
       ]
     })
-    // Cuadrilla con supervisor y cada miembro (persona) populado
     .populate({
       path: 'cuadrilla',
       populate: [
@@ -95,11 +93,9 @@ const createRegistro = asyncHandler(async (req, res) => {
     estado
   } = req.body;
 
-  // Obtener persona del usuario autenticado (OPCIONAL)
   const persona = await Persona.findOne({ usuario: req.user.id });
   const registradoPorId = persona ? persona._id : (registrado_por || null);
 
-  // Verificar acceso del supervisor (si es supervisor)
   if (req.user.roles.includes('SUPERVISOR') && persona) {
     await registroDiarioService.verificarAccesoSupervisor(
       persona._id,
@@ -107,16 +103,13 @@ const createRegistro = asyncHandler(async (req, res) => {
     );
   }
 
-  // Validar duplicado solo cuando hay trabajador explícito
   if (trabajador) {
     await registroDiarioService.validarRegistroUnico(fecha, trabajador, proyecto_actividad_lote);
   }
 
-  // Generar código
   const count = await RegistroDiario.countDocuments();
   const codigo = `REG-${new Date(fecha).toISOString().split('T')[0].replace(/-/g, '')}-${String(count + 1).padStart(4, '0')}`;
 
-  // Crear registro
   const registro = await RegistroDiario.create({
     codigo,
     fecha,
@@ -132,7 +125,6 @@ const createRegistro = asyncHandler(async (req, res) => {
     observaciones
   });
 
-  // Actualizar cantidad ejecutada del PAL
   await registroDiarioService.actualizarCantidadPAL(proyecto_actividad_lote);
 
   await registro.populate([
@@ -161,10 +153,8 @@ const updateRegistro = asyncHandler(async (req, res) => {
     throw new ApiError(404, 'Registro no encontrado');
   }
 
-  // Obtener persona (OPCIONAL)
   const persona = await Persona.findOne({ usuario: req.user.id });
 
-  // Verificar permisos de edición
   if (persona) {
     const resultado = registroDiarioService.puedeEditar(registro, req.user.roles);
     if (!resultado.puede) {
@@ -189,7 +179,6 @@ const updateRegistro = asyncHandler(async (req, res) => {
   if (observaciones !== undefined)      registro.observaciones = observaciones;
   if (estado !== undefined)             registro.estado = estado;
 
-  // Marcar como editado
   if (motivo_edicion) {
     registro.editado = true;
     registro.fecha_edicion = new Date();
