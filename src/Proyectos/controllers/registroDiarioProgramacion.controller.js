@@ -1,27 +1,60 @@
 // ==========================================
 // CONTROLADOR: REGISTRO DIARIO PROGRAMACIÓN — CORREGIDO
 // ==========================================
-// BUG CRÍTICO CORREGIDO:
-//
-// "Error al actualizar registros" al guardar el modal:
-//
-//   La cadena de llamadas era:
-//   registro.save()
-//     → post('save') hook en RegistroDiarioProgramacion
-//       → programacion.actualizarPorcentaje()
-//         → programacion.save()
-//           → pre('save') de Programacion (hook de duplicados)
-//             → findOne() dentro del hook → ERROR o deadlock
-//
-//   FIX: Usar findByIdAndUpdate() en lugar de save() para bypassear
-//   todos los hooks. Calcular y actualizar el porcentaje manualmente
-//   con una sola operación updateOne() al final, sin disparar hooks.
 
 const mongoose                   = require('mongoose');
 const RegistroDiarioProgramacion = require('../models/registroDiarioProgramacion.model');
 const Programacion               = require('../models/programacion.model');
 
-// Helper: recalcular y actualizar totales de la programación (sin hooks)
+const normalizarFechaUTC = (fecha) => {
+  const d = new Date(fecha);
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+};
+
+const calcularEstadoRegistro = ({
+  cantidad_ejecutada = 0,
+  tiempo_detenido = 0,
+  motivo_detencion = null,
+  motivo_detencion_otro = '',
+}) => {
+  const cantidad = Number(cantidad_ejecutada) || 0;
+  const tiempo = Number(tiempo_detenido) || 0;
+  const motivo = motivo_detencion || null;
+  const detalle = String(motivo_detencion_otro || '').trim();
+
+  if (cantidad > 0) return 'COMPLETADO';
+  if (tiempo > 0 && (motivo || detalle)) return 'COMPLETADO';
+
+  return 'PENDIENTE';
+};
+
+const normalizarMotivoDetencion = (motivo) => {
+  if (!motivo) return null;
+
+  const limpio = String(motivo).trim();
+
+  const mapa = {
+    LLUVIA: 'lluvia',
+    TRAFICO: 'trafico',
+    FALLA_EQUIPO: 'falla_equipo',
+    ACCIDENTE: 'accidente',
+    ORDEN_CLIENTE: 'orden_cliente',
+    DESCANSO: 'descanso',
+    OTRO: 'otro',
+
+    lluvia: 'lluvia',
+    trafico: 'trafico',
+    falla_equipo: 'falla_equipo',
+    accidente: 'accidente',
+    orden_cliente: 'orden_cliente',
+    descanso: 'descanso',
+    otro: 'otro',
+  };
+
+  return mapa[limpio] || mapa[limpio.toUpperCase()] || null;
+};
+
+// Helper: recalcular y actualizar totales de la programación
 const recalcularProgramacion = async (programacion_id) => {
   const registros = await RegistroDiarioProgramacion.find({ programacion: programacion_id });
   const totalEjecutado = registros.reduce((s, r) => s + (r.cantidad_ejecutada || 0), 0);
@@ -36,14 +69,13 @@ const recalcularProgramacion = async (programacion_id) => {
   const completados = registros.filter(r => r.estado === 'COMPLETADO').length;
   const nuevoEstado = (completados === 7 && prog.estado === 'ACTIVA') ? 'COMPLETADA' : prog.estado;
 
-  // ✅ updateOne bypasea todos los pre-save hooks
   await Programacion.updateOne(
     { _id: programacion_id },
     {
       $set: {
         cantidad_ejecutada_total: totalEjecutado,
-        porcentaje_cumplimiento:  porcentaje,
-        estado:                   nuevoEstado,
+        porcentaje_cumplimiento: porcentaje,
+        estado: nuevoEstado,
       },
     }
   );
@@ -55,11 +87,11 @@ exports.getRegistrosDiarios = async (req, res) => {
     const { programacion_id, estado, skip = 0, limit = 50 } = req.query;
     const filtro = {};
     if (programacion_id) filtro.programacion = programacion_id;
-    if (estado)          filtro.estado        = estado;
+    if (estado) filtro.estado = estado;
 
-    const total    = await RegistroDiarioProgramacion.countDocuments(filtro);
+    const total = await RegistroDiarioProgramacion.countDocuments(filtro);
     const registros = await RegistroDiarioProgramacion.find(filtro)
-      .populate('programacion',  'contrato')
+      .populate('programacion', 'contrato')
       .populate('registrado_por', 'nombre email')
       .skip(parseInt(skip))
       .limit(parseInt(limit))
@@ -80,7 +112,7 @@ exports.getRegistroDiarioById = async (req, res) => {
     const registro = await RegistroDiarioProgramacion.findById(req.params.id)
       .populate('programacion')
       .populate('registrado_por', 'nombre email')
-      .populate('validado_por',   'nombre email');
+      .populate('validado_por', 'nombre email');
 
     if (!registro) {
       return res.status(404).json({ success: false, message: 'Registro no encontrado' });
@@ -110,31 +142,39 @@ exports.createRegistroDiario = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Programación no encontrada' });
     }
 
-    // Si hay tiempo detenido debe haber motivo
-    if (tiempo_detenido > 0 && !motivo_detencion) {
+    const motivoNormalizado = normalizarMotivoDetencion(motivo_detencion);
+
+    if ((Number(tiempo_detenido) || 0) > 0 && !motivoNormalizado && !String(motivo_detencion_otro || '').trim()) {
       return res.status(400).json({
         success: false,
         message: 'Debe especificar el motivo de detención cuando hay tiempo detenido',
       });
     }
 
-    // Si el motivo es OTRO debe haber descripción
-    if (motivo_detencion === 'OTRO' && !motivo_detencion_otro) {
+    if (motivoNormalizado === 'otro' && !String(motivo_detencion_otro || '').trim()) {
       return res.status(400).json({
         success: false,
         message: 'Debe especificar el detalle cuando el motivo es OTRO',
       });
     }
 
+    const estadoCalculado = calcularEstadoRegistro({
+      cantidad_ejecutada,
+      tiempo_detenido,
+      motivo_detencion: motivoNormalizado,
+      motivo_detencion_otro,
+    });
+
     const registro = await RegistroDiarioProgramacion.create({
-      programacion:          programacion_id,
-      fecha:                 new Date(fecha),
-      cantidad_ejecutada:    cantidad_ejecutada || 0,
-      observaciones:         observaciones || '',
-      tiempo_detenido:       tiempo_detenido || 0,
-      motivo_detencion:      motivo_detencion || null,
-      motivo_detencion_otro: motivo_detencion_otro || '',
-      registrado_por:        usuario_id,
+      programacion: programacion_id,
+      fecha: new Date(fecha),
+      cantidad_ejecutada: cantidad_ejecutada || 0,
+      observaciones: observaciones || '',
+      tiempo_detenido: tiempo_detenido || 0,
+      motivo_detencion: (Number(tiempo_detenido) || 0) > 0 ? (motivoNormalizado || null) : null,
+      motivo_detencion_otro: (Number(tiempo_detenido) || 0) > 0 ? (motivo_detencion_otro || '') : '',
+      estado: estadoCalculado,
+      registrado_por: usuario_id,
     });
 
     await recalcularProgramacion(programacion_id);
@@ -160,57 +200,87 @@ exports.updateRegistroDiario = async (req, res) => {
       motivo_detencion_otro,
     } = req.body;
 
-    // Validaciones de jornada detenida
-    const tiempoVal = tiempo_detenido !== undefined ? Math.max(0, tiempo_detenido) : undefined;
-    if (tiempoVal > 0 && !motivo_detencion) {
+    const registroActual = await RegistroDiarioProgramacion.findById(id);
+    if (!registroActual) {
+      return res.status(404).json({ success: false, message: 'Registro no encontrado' });
+    }
+
+    const cantidad = cantidad_ejecutada !== undefined
+      ? Math.max(0, Number(cantidad_ejecutada) || 0)
+      : registroActual.cantidad_ejecutada;
+
+    const tiempo = tiempo_detenido !== undefined
+      ? Math.max(0, Number(tiempo_detenido) || 0)
+      : registroActual.tiempo_detenido;
+
+    const motivo = tiempo === 0
+      ? null
+      : (
+          motivo_detencion !== undefined
+            ? normalizarMotivoDetencion(motivo_detencion)
+            : (registroActual.motivo_detencion || null)
+        );
+
+    const detalleOtro = tiempo === 0
+      ? ''
+      : (
+          motivo_detencion_otro !== undefined
+            ? (motivo_detencion_otro || '')
+            : (registroActual.motivo_detencion_otro || '')
+        );
+
+    if (tiempo > 0 && !motivo && !String(detalleOtro || '').trim()) {
       return res.status(400).json({
         success: false,
         message: 'Debe especificar el motivo de detención cuando hay tiempo detenido',
       });
     }
-    if (motivo_detencion === 'OTRO' && !motivo_detencion_otro) {
+
+    if (motivo === 'otro' && !String(detalleOtro || '').trim()) {
       return res.status(400).json({
         success: false,
         message: 'Debe especificar el detalle cuando el motivo es OTRO',
       });
     }
 
-    const cantidad    = cantidad_ejecutada !== undefined ? Math.max(0, cantidad_ejecutada) : undefined;
-    const nuevoEstado = cantidad !== undefined ? (cantidad > 0 ? 'COMPLETADO' : 'PENDIENTE') : undefined;
+    const estadoCalculado = calcularEstadoRegistro({
+      cantidad_ejecutada: cantidad,
+      tiempo_detenido: tiempo,
+      motivo_detencion: motivo,
+      motivo_detencion_otro: detalleOtro,
+    });
 
-    const update = {};
-    if (cantidad       !== undefined) update.cantidad_ejecutada    = cantidad;
-    if (nuevoEstado    !== undefined) update.estado                = nuevoEstado;
-    if (observaciones  !== undefined) update.observaciones         = observaciones;
-    if (tiempoVal      !== undefined) update.tiempo_detenido       = tiempoVal;
-    if (motivo_detencion !== undefined) {
-      // Si tiempo es 0, limpiar el motivo
-      update.motivo_detencion = tiempoVal === 0 ? null : motivo_detencion;
+    const update = {
+      cantidad_ejecutada: cantidad,
+      tiempo_detenido: tiempo,
+      motivo_detencion: motivo,
+      motivo_detencion_otro: detalleOtro,
+      estado: estadoCalculado,
+    };
+
+    if (observaciones !== undefined) {
+      update.observaciones = observaciones;
     }
-    if (motivo_detencion_otro !== undefined) update.motivo_detencion_otro = motivo_detencion_otro;
 
-    // ✅ findByIdAndUpdate bypasea hooks — sin cadena de saves problemática
     const registro = await RegistroDiarioProgramacion.findByIdAndUpdate(
       id,
       { $set: update },
       { new: true, runValidators: false }
     );
 
-    if (!registro) {
-      return res.status(404).json({ success: false, message: 'Registro no encontrado' });
-    }
-
     await recalcularProgramacion(registro.programacion);
 
-    res.json({ success: true, message: 'Registro actualizado', data: registro });
+    res.json({
+      success: true,
+      message: 'Registro actualizado',
+      data: registro,
+    });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message, error: error.message });
   }
 };
 
 // ── 5. ACTUALIZAR MÚLTIPLES REGISTROS (MODAL) ────────────────────────
-// ✅ FIX PRINCIPAL: usa findByIdAndUpdate en lugar de save()
-//    para evitar la cadena hooks que causaba el error
 exports.updateMultiplesRegistros = async (req, res) => {
   try {
     const { registros } = req.body;
@@ -220,33 +290,80 @@ exports.updateMultiplesRegistros = async (req, res) => {
     }
 
     let programacion_id = null;
-    const resultados    = [];
+    const resultados = [];
 
-    // ✅ Actualizar todos con findByIdAndUpdate (sin disparar hooks)
     for (const item of registros) {
       if (!item.id) {
         resultados.push({ id: item.id, success: false, message: 'ID requerido' });
         continue;
       }
 
-      const cantidad   = item.cantidad_ejecutada !== undefined ? Math.max(0, item.cantidad_ejecutada) : 0;
-      const estadoCalc = cantidad > 0 ? 'COMPLETADO' : 'PENDIENTE';
-      const tiempo     = item.tiempo_detenido    !== undefined ? Math.max(0, item.tiempo_detenido)    : 0;
+      const registroActual = await RegistroDiarioProgramacion.findById(item.id);
+      if (!registroActual) {
+        resultados.push({ id: item.id, success: false, message: 'Registro no encontrado' });
+        continue;
+      }
 
-      // Convertir string vacío a null para no romper el enum de Mongoose
-      const motivoRaw  = item.motivo_detencion || null;
-      const motivo     = tiempo === 0 ? null : motivoRaw;
+      const cantidad = item.cantidad_ejecutada !== undefined
+        ? Math.max(0, Number(item.cantidad_ejecutada) || 0)
+        : registroActual.cantidad_ejecutada;
+
+      const tiempo = item.tiempo_detenido !== undefined
+        ? Math.max(0, Number(item.tiempo_detenido) || 0)
+        : registroActual.tiempo_detenido;
+
+      const motivo = tiempo === 0
+        ? null
+        : (
+            item.motivo_detencion !== undefined
+              ? normalizarMotivoDetencion(item.motivo_detencion)
+              : (registroActual.motivo_detencion || null)
+          );
+
+      const detalleOtro = tiempo === 0
+        ? ''
+        : (
+            item.motivo_detencion_otro !== undefined
+              ? (item.motivo_detencion_otro || '')
+              : (registroActual.motivo_detencion_otro || '')
+          );
+
+      if (tiempo > 0 && !motivo && !String(detalleOtro || '').trim()) {
+        resultados.push({
+          id: item.id,
+          success: false,
+          message: 'Debe especificar el motivo de detención cuando hay tiempo detenido',
+        });
+        continue;
+      }
+
+      if (motivo === 'otro' && !String(detalleOtro || '').trim()) {
+        resultados.push({
+          id: item.id,
+          success: false,
+          message: 'Debe especificar el detalle cuando el motivo es OTRO',
+        });
+        continue;
+      }
+
+      const estadoCalculado = calcularEstadoRegistro({
+        cantidad_ejecutada: cantidad,
+        tiempo_detenido: tiempo,
+        motivo_detencion: motivo,
+        motivo_detencion_otro: detalleOtro,
+      });
 
       const update = {
-        cantidad_ejecutada:    cantidad,
-        estado:                estadoCalc,
-        tiempo_detenido:       tiempo,
-        motivo_detencion:      motivo,
-        motivo_detencion_otro: tiempo > 0 && motivo === 'OTRO'
-          ? (item.motivo_detencion_otro || '')
-          : '',
+        cantidad_ejecutada: cantidad,
+        tiempo_detenido: tiempo,
+        motivo_detencion: motivo,
+        motivo_detencion_otro: detalleOtro,
+        estado: estadoCalculado,
       };
-      if (item.observaciones !== undefined) update.observaciones = item.observaciones;
+
+      if (item.observaciones !== undefined) {
+        update.observaciones = item.observaciones;
+      }
 
       const registro = await RegistroDiarioProgramacion.findByIdAndUpdate(
         item.id,
@@ -262,32 +379,47 @@ exports.updateMultiplesRegistros = async (req, res) => {
       if (!programacion_id) programacion_id = registro.programacion;
 
       resultados.push({
-        id:                    item.id,
-        success:               true,
-        cantidad_ejecutada:    registro.cantidad_ejecutada,
-        estado:                registro.estado,
-        tiempo_detenido:       registro.tiempo_detenido,
-        motivo_detencion:      registro.motivo_detencion,
+        id: registro._id,
+        success: true,
+        cantidad_ejecutada: registro.cantidad_ejecutada,
+        estado: registro.estado,
+        observaciones: registro.observaciones,
+        tiempo_detenido: registro.tiempo_detenido,
+        motivo_detencion: registro.motivo_detencion,
         motivo_detencion_otro: registro.motivo_detencion_otro,
       });
     }
 
-    // ✅ Recalcular programación UNA sola vez al final (sin hooks)
     if (programacion_id) {
       await recalcularProgramacion(programacion_id);
+    }
+
+    const errores = resultados.filter(r => !r.success);
+
+    if (errores.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Errores de validación',
+        errors: errores.map(err => ({
+          field: `registros[${resultados.findIndex(r => r.id?.toString() === err.id?.toString())}].motivo_detencion`,
+          message: err.message,
+          value: null,
+        })),
+        data: resultados,
+      });
     }
 
     res.json({
       success: true,
       message: 'Registros actualizados exitosamente',
-      data:    resultados,
+      data: resultados,
     });
   } catch (error) {
     console.error('Error updateMultiplesRegistros:', error);
     res.status(400).json({
       success: false,
       message: error.message || 'Error al actualizar registros',
-      error:   error.message,
+      error: error.message,
     });
   }
 };
@@ -306,27 +438,43 @@ exports.getRegistrosSemana = async (req, res) => {
       .sort({ fecha: 1 });
 
     const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    const hoy = normalizarFechaUTC(new Date());
 
-    const dias = registros.map((r, idx) => ({
-      _id:                   r._id,
-      numero_dia:            idx + 1,
-      dia_semana:            DIAS[new Date(r.fecha).getDay()],
-      fecha:                 r.fecha,
-      cantidad_ejecutada:    r.cantidad_ejecutada,
-      estado:                r.estado,
-      observaciones:         r.observaciones,
-      tiempo_detenido:       r.tiempo_detenido,
-      motivo_detencion:      r.motivo_detencion,
-      motivo_detencion_otro: r.motivo_detencion_otro,
-    }));
+    const dias = registros.map((r, idx) => {
+      const fechaNormalizada = normalizarFechaUTC(r.fecha);
+      const es_hoy = fechaNormalizada.getTime() === hoy.getTime();
+      const es_pasado = fechaNormalizada.getTime() < hoy.getTime();
+      const es_futuro = fechaNormalizada.getTime() > hoy.getTime();
+
+      return {
+        _id: r._id,
+        numero_dia: idx + 1,
+        dia_semana: DIAS[new Date(r.fecha).getUTCDay()],
+        fecha: r.fecha,
+        cantidad_ejecutada: r.cantidad_ejecutada,
+        estado: r.estado,
+        observaciones: r.observaciones,
+        tiempo_detenido: r.tiempo_detenido,
+        motivo_detencion: r.motivo_detencion,
+        motivo_detencion_otro: r.motivo_detencion_otro,
+        es_hoy,
+        es_pasado,
+        es_futuro,
+      };
+    });
+
+    const registroHoy = dias.find((d) => d.es_hoy) || null;
 
     res.json({
       success: true,
       data: {
         programacion_id,
-        cantidad_proyectada:      programacion.cantidad_proyectada,
+        cantidad_proyectada: programacion.cantidad_proyectada,
         cantidad_ejecutada_total: programacion.cantidad_ejecutada_total,
-        porcentaje_cumplimiento:  programacion.porcentaje_cumplimiento,
+        porcentaje_cumplimiento: programacion.porcentaje_cumplimiento,
+        hoy: hoy.toISOString(),
+        registro_hoy_pendiente: registroHoy ? registroHoy.estado !== 'COMPLETADO' : false,
+        registro_hoy_estado: registroHoy ? registroHoy.estado : null,
         dias,
       },
     });
@@ -380,10 +528,10 @@ exports.getEstadisticas = async (req, res) => {
       success: true,
       data: {
         total_registros: registros.length,
-        completados:     registros.filter(r => r.estado === 'COMPLETADO').length,
-        pendientes:      registros.filter(r => r.estado === 'PENDIENTE').length,
-        parciales:       registros.filter(r => r.estado === 'PARCIAL').length,
-        cantidad_total:  registros.reduce((s, r) => s + (r.cantidad_ejecutada || 0), 0),
+        completados: registros.filter(r => r.estado === 'COMPLETADO').length,
+        pendientes: registros.filter(r => r.estado === 'PENDIENTE').length,
+        parciales: registros.filter(r => r.estado === 'PARCIAL').length,
+        cantidad_total: registros.reduce((s, r) => s + (r.cantidad_ejecutada || 0), 0),
       },
     });
   } catch (error) {
