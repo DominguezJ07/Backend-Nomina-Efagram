@@ -11,16 +11,6 @@ class PersonaBulkService {
     return this.normalizeString(value).toUpperCase();
   }
 
-  normalizeEmail(value) {
-    const email = this.normalizeString(value).toLowerCase();
-    return email || undefined;
-  }
-
-  normalizeNumberString(value) {
-    const raw = this.normalizeString(value);
-    return raw || undefined;
-  }
-
   normalizeDate(value) {
     const raw = this.normalizeString(value);
     if (!raw) return undefined;
@@ -39,7 +29,7 @@ class PersonaBulkService {
     return parsed;
   }
 
-  normalizeBooleanEstado(value) {
+  normalizeEstado(value) {
     const raw = this.normalizeUpper(value);
     if (!raw) return 'ACTIVO';
 
@@ -77,6 +67,13 @@ class PersonaBulkService {
     return supervisor._id;
   }
 
+  buildFullName(first, second) {
+    return [this.normalizeString(first), this.normalizeString(second)]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+  }
+
   async processRows(rows = []) {
     const result = {
       total: rows.length,
@@ -93,49 +90,32 @@ class PersonaBulkService {
       try {
         const operacion = this.normalizeUpper(row.operacion);
         const personaId = this.normalizeString(row.persona_id);
-        const tipo_doc = this.normalizeUpper(row.tipo_doc || 'CC');
-        const num_doc = this.normalizeString(row.num_doc);
-        const nombres = this.normalizeString(row.nombres);
-        const apellidos = this.normalizeString(row.apellidos);
-        const telefono = this.normalizeString(row.telefono);
-        const email = this.normalizeEmail(row.email);
-        const direccion = this.normalizeString(row.direccion);
-        const fecha_ingreso = this.normalizeDate(row.fecha_ingreso);
-        const tipo_contrato = this.normalizeUpper(row.tipo_contrato || 'OBRA_LABOR');
+        const cedula = this.normalizeString(row.cedula);
+        const primerNombre = this.normalizeString(row.primer_nombre);
+        const segundoNombre = this.normalizeString(row.segundo_nombre);
+        const primerApellido = this.normalizeString(row.primer_apellido);
+        const segundoApellido = this.normalizeString(row.segundo_apellido);
         const cargo = this.normalizeString(row.cargo);
-        const banco = this.normalizeString(row.banco);
-        const tipo_cuenta = this.normalizeUpper(row.tipo_cuenta || 'AHORROS');
-        const numero_cuenta = this.normalizeNumberString(row.numero_cuenta);
-        const eps = this.normalizeString(row.eps);
-        const arl = this.normalizeString(row.arl);
-        const fondo_pension = this.normalizeString(row.fondo_pension);
-        const estado = this.normalizeBooleanEstado(row.estado);
-        const observaciones = this.normalizeString(row.observaciones);
+        const tipoContrato = this.normalizeUpper(row.tipo_contrato || 'OBRA_LABOR');
+        const fechaIngreso = this.normalizeDate(row.fecha_ingreso);
+        const estado = this.normalizeEstado(row.estado);
 
         if (!['CREAR', 'ACTUALIZAR'].includes(operacion)) {
           throw new Error('La operación debe ser CREAR o ACTUALIZAR');
         }
 
-        if (!['CC', 'CE', 'TI', 'PA'].includes(tipo_doc)) {
-          throw new Error('tipo_doc inválido');
-        }
-
-        if (!num_doc) throw new Error('num_doc es obligatorio');
-        if (!nombres) throw new Error('nombres es obligatorio');
-        if (!apellidos) throw new Error('apellidos es obligatorio');
+        if (!cedula) throw new Error('cedula es obligatoria');
+        if (!primerNombre) throw new Error('primer_nombre es obligatorio');
+        if (!primerApellido) throw new Error('primer_apellido es obligatorio');
 
         if (
-          tipo_contrato &&
-          !['INDEFINIDO', 'FIJO', 'OBRA_LABOR', 'APRENDIZ', 'TEMPORAL'].includes(tipo_contrato)
+          tipoContrato &&
+          !['INDEFINIDO', 'FIJO', 'OBRA_LABOR', 'APRENDIZ', 'TEMPORAL'].includes(tipoContrato)
         ) {
           throw new Error('tipo_contrato inválido');
         }
 
-        if (tipo_cuenta && !['AHORROS', 'CORRIENTE'].includes(tipo_cuenta)) {
-          throw new Error('tipo_cuenta inválido');
-        }
-
-        if (fecha_ingreso === 'INVALID_DATE') {
+        if (fechaIngreso === 'INVALID_DATE') {
           throw new Error('fecha_ingreso inválida. Usa YYYY-MM-DD o DD/MM/YYYY');
         }
 
@@ -147,34 +127,27 @@ class PersonaBulkService {
         const proceso = await this.validateProceso(row.proceso_id);
         const supervisor = await this.validateSupervisor(row.supervisor_id);
 
+        const nombres = this.buildFullName(primerNombre, segundoNombre);
+        const apellidos = this.buildFullName(primerApellido, segundoApellido);
+
         if (operacion === 'CREAR') {
-          const existe = await Persona.findOne({ num_doc });
+          const existe = await Persona.findOne({ num_doc: cedula });
           if (existe) {
-            throw new Error(`Ya existe una persona con documento ${num_doc}`);
+            throw new Error(`Ya existe una persona con documento ${cedula}`);
           }
 
           await Persona.create({
-            tipo_doc,
-            num_doc,
+            tipo_doc: 'CC',
+            num_doc: cedula,
             nombres,
             apellidos,
-            telefono,
-            email,
-            direccion,
-            fecha_ingreso,
-            tipo_contrato,
             cargo,
-            banco,
-            tipo_cuenta,
-            numero_cuenta,
-            eps,
-            arl,
-            fondo_pension,
+            tipo_contrato: tipoContrato,
+            fecha_ingreso: fechaIngreso,
+            estado,
             finca,
             proceso,
             supervisor,
-            estado,
-            observaciones,
           });
 
           result.creadas += 1;
@@ -190,37 +163,26 @@ class PersonaBulkService {
             throw new Error('La persona a actualizar no existe');
           }
 
-          if (num_doc !== persona.num_doc) {
+          if (cedula !== persona.num_doc) {
             const existeOtra = await Persona.findOne({
               _id: { $ne: persona._id },
-              num_doc,
+              num_doc: cedula,
             });
             if (existeOtra) {
-              throw new Error(`Ya existe otra persona con documento ${num_doc}`);
+              throw new Error(`Ya existe otra persona con documento ${cedula}`);
             }
           }
 
-          persona.tipo_doc = tipo_doc;
-          persona.num_doc = num_doc;
+          persona.num_doc = cedula;
           persona.nombres = nombres;
           persona.apellidos = apellidos;
-          persona.telefono = telefono;
-          persona.email = email;
-          persona.direccion = direccion;
-          if (fecha_ingreso) persona.fecha_ingreso = fecha_ingreso;
-          persona.tipo_contrato = tipo_contrato;
           persona.cargo = cargo;
-          persona.banco = banco;
-          persona.tipo_cuenta = tipo_cuenta;
-          persona.numero_cuenta = numero_cuenta;
-          persona.eps = eps;
-          persona.arl = arl;
-          persona.fondo_pension = fondo_pension;
+          persona.tipo_contrato = tipoContrato;
+          if (fechaIngreso) persona.fecha_ingreso = fechaIngreso;
+          persona.estado = estado;
           persona.finca = finca;
           persona.proceso = proceso;
           persona.supervisor = supervisor;
-          persona.estado = estado;
-          persona.observaciones = observaciones;
 
           await persona.save();
 
