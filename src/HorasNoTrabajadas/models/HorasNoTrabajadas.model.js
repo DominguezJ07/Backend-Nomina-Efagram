@@ -1,14 +1,14 @@
-import mongoose from "mongoose";
+const mongoose = require('mongoose');
 
 const HorasNoTrabajadasSchema = new mongoose.Schema({
   subproyectoId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "Subproyecto",
+    ref: 'Subproyecto',
     required: true
   },
   cuadrillaId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "Cuadrilla",
+    ref: 'Cuadrilla',
     required: true
   },
   fecha: {
@@ -17,14 +17,17 @@ const HorasNoTrabajadasSchema = new mongoose.Schema({
   },
   horas: {
     type: Number,
-    required: true
+    required: true,
+    min: 0,
+    max: 24
   },
   motivo: {
     type: String,
-    required: true
+    required: true,
+    trim: true
   }
 }, {
   timestamps: true
 });
 
-export default mongoose.model("HorasNoTrabajadas", HorasNoTrabajadasSchema);
+module.exports = mongoose.model('HorasNoTrabajadas', HorasNoTrabajadasSchema);

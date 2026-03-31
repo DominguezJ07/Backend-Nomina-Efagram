@@ -1,8 +1,11 @@
-import express from "express";
-import { crearHorasNoTrabajadas } from "../controllers/horasNoTrabajadas.controller.js";
-
+const express = require('express');
 const router = express.Router();
+const controller = require('../controllers/horasNoTrabajadas.controller');
 
-router.post("/", crearHorasNoTrabajadas);
+// Crear horas no trabajadas
+router.post('/', controller.crear);
 
-export default router;
+// Obtener horas por mes
+router.get('/mensual', controller.obtenerPorMes);
+
+module.exports = router;

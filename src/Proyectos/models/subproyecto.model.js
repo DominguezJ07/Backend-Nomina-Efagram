@@ -19,6 +19,7 @@ const subproyectoSchema = new mongoose.Schema(
       ref: 'Proyecto',
       required: [true, 'El proyecto es obligatorio'],
     },
+
     // Núcleos asignados (deben pertenecer a la zona del proyecto)
     nucleos: [
       {
@@ -26,6 +27,15 @@ const subproyectoSchema = new mongoose.Schema(
         ref: 'Nucleo',
       },
     ],
+
+    // 🔥 NUEVO: Cuadrillas asignadas al subproyecto
+    cuadrillas: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Cuadrilla',
+      },
+    ],
+
     supervisor: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Persona',
@@ -57,6 +67,9 @@ const subproyectoSchema = new mongoose.Schema(
 subproyectoSchema.index({ proyecto: 1 });
 subproyectoSchema.index({ proyecto: 1, estado: 1 });
 subproyectoSchema.index({ codigo: 1 }, { unique: true });
+
+// (Opcional recomendado) índice para consultas por cuadrilla
+subproyectoSchema.index({ cuadrillas: 1 });
 
 subproyectoSchema.set('toJSON', { virtuals: true });
 subproyectoSchema.set('toObject', { virtuals: true });

@@ -67,23 +67,23 @@ app.get('/', (req, res) => {
 // IMPORTAR RUTAS
 // ========================================
 
-// Rutas de Autenticación
+// Autenticación
 const authRoutes = require('./Auth/routes/auth.routes');
 
-// Rutas Territoriales
+// Territorial
 const zonaRoutes = require('./Territorial/routes/zona.routes');
 const nucleoRoutes = require('./Territorial/routes/nucleo.routes');
 const fincaRoutes = require('./Territorial/routes/finca.routes');
 const loteRoutes = require('./Territorial/routes/lote.routes');
 
-// Rutas de Personal
+// Personal
 const personaRoutes = require('./Personal/routes/persona.routes');
 const rolRoutes = require('./Personal/routes/rol.routes');
 const personaRolRoutes = require('./Personal/routes/personaRol.routes');
 const cuadrillaRoutes = require('./Personal/routes/cuadrilla.routes');
 const asignacionRoutes = require('./Personal/routes/asignacion.routes');
 
-// Rutas de Proyectos
+// Proyectos
 const clienteRoutes = require('./Proyectos/routes/cliente.routes');
 const proyectoRoutes = require('./Proyectos/routes/proyecto.routes');
 const actividadRoutes = require('./Proyectos/routes/actividadCatalogo.routes');
@@ -91,38 +91,39 @@ const palRoutes = require('./Proyectos/routes/pal.routes');
 const precioBaseRoutes = require('./Proyectos/routes/precioBase.routes');
 const precioNegociadoRoutes = require('./Proyectos/routes/precioNegociado.routes');
 
-// Rutas de Ejecución
+// Ejecución
 const registroDiarioRoutes = require('./Ejecucion/routes/registroDiario.routes');
 const novedadRoutes = require('./Ejecucion/routes/novedad.routes');
 const semanaOperativaRoutes = require('./ControlSemanal/routes/semanaOperativa.routes');
 
-// Rutas de Catálogos
+// 🔥 NUEVO: Horas No Trabajadas
+const horasNoTrabajadasRoutes = require('./HorasNoTrabajadas/routes/horasNoTrabajadas.routes');
+
+// Catálogos
 const procesoRoutes      = require('./Catalogos/routes/proceso.routes');
 const intervencionRoutes = require('./Catalogos/routes/intervencion.routes');
 const cargoRoutes        = require('./Catalogos/routes/cargo.routes');
 
-// Rutas de Control Semanal
+// Control Semanal
 const consolidadoRoutes = require('./ControlSemanal/routes/consolidado.routes');
 const indicadorRoutes = require('./ControlSemanal/routes/indicador.routes');
 const alertaRoutes = require('./ControlSemanal/routes/alerta.routes');
 const controlSemanalRoutes = require('./ControlSemanal/routes/controlSemanal.routes');
 
-// Rutas adicionales de Proyectos
+// Proyectos adicionales
 const actividadProyectoRoutes   = require('./Proyectos/routes/actividadProyecto.routes');
 const subproyectoRoutes         = require('./Proyectos/routes/subproyecto.routes');
 const asignacionActividadRoutes = require('./Proyectos/routes/asignacionActividad.routes');
 
-// Rutas de Contratos
+// Contratos
 const contratoRoutes = require('./Contratos/routes/contrato.routes');
 
-// Rutas de Programación
+// Programación
 const programacionRoutes = require('./Proyectos/routes/programacion.routes');
 const registroDiarioProgramacionRoutes = require('./Proyectos/routes/registroDiarioProgramacion.routes');
 
-// Rutas de Reportes
+// Reportes
 const reportesRoutes = require('./Reportes/routes/reportes.routes');
-
-
 
 // ========================================
 // RUTAS DE LA API
@@ -159,10 +160,13 @@ apiRouter.use('/registros-diarios', registroDiarioRoutes);
 apiRouter.use('/novedades', novedadRoutes);
 apiRouter.use('/semanas', semanaOperativaRoutes);
 
+// 🔥 NUEVO ENDPOINT
+apiRouter.use('/horas-no-trabajadas', horasNoTrabajadasRoutes);
+
 // Catálogos
-apiRouter.use('/procesos',      procesoRoutes);
+apiRouter.use('/procesos', procesoRoutes);
 apiRouter.use('/intervenciones', intervencionRoutes);
-apiRouter.use('/cargos',        cargoRoutes);
+apiRouter.use('/cargos', cargoRoutes);
 
 // Control Semanal
 apiRouter.use('/consolidados', consolidadoRoutes);
@@ -171,9 +175,9 @@ apiRouter.use('/alertas', alertaRoutes);
 apiRouter.use('/control-semanal', controlSemanalRoutes);
 
 // Proyectos adicionales
-apiRouter.use('/actividades-proyecto',  actividadProyectoRoutes);
-apiRouter.use('/subproyectos',          subproyectoRoutes);
-apiRouter.use('/asignaciones',          asignacionActividadRoutes);
+apiRouter.use('/actividades-proyecto', actividadProyectoRoutes);
+apiRouter.use('/subproyectos', subproyectoRoutes);
+apiRouter.use('/asignaciones', asignacionActividadRoutes);
 
 // Contratos
 apiRouter.use('/contratos', contratoRoutes);
