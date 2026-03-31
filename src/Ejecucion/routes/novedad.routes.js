@@ -7,6 +7,7 @@ const {
   getNovedades,
   getNovedad,
   createNovedad,
+  crearNoTrabajado, // 👈 AGREGADO
   updateNovedad,
   aprobarNovedad,
   rechazarNovedad,
@@ -32,12 +33,10 @@ const novedadValidation = [
     .notEmpty().withMessage('El trabajador es obligatorio')
     .isMongoId().withMessage('ID de trabajador inválido'),
 
-  // ✅ NUEVO: validación de cuadrilla
   body('cuadrilla')
     .optional()
     .isMongoId().withMessage('ID de cuadrilla inválido'),
 
-  // ✅ NUEVO: validación de finca
   body('finca')
     .optional()
     .isMongoId().withMessage('ID de finca inválido'),
@@ -51,18 +50,9 @@ const novedadValidation = [
     .trim()
     .isLength({ min: 10, max: 500 }).withMessage('La descripción debe tener entre 10 y 500 caracteres'),
 
-  // ✅ NUEVO: validación de horas (campo parcial del día, especialmente para LLUVIA)
   body('horas')
     .optional({ nullable: true })
-    .isFloat({ min: 0, max: 24 }).withMessage('Las horas deben estar entre 0 y 24')
-    .custom((value, { req }) => {
-      // Si el tipo es LLUVIA, se recomienda enviar horas
-      if (req.body.tipo === 'LLUVIA' && (value === null || value === undefined)) {
-        // No bloqueamos, solo es recomendación — el front puede manejar esto
-        return true;
-      }
-      return true;
-    }),
+    .isFloat({ min: 0, max: 24 }).withMessage('Las horas deben estar entre 0 y 24'),
 
   body('dias')
     .optional()
@@ -112,12 +102,10 @@ const novedadValidation = [
 const novedadUpdateValidation = [
   body('fecha').optional().isISO8601().withMessage('Fecha inválida'),
   body('trabajador').optional().isMongoId().withMessage('ID de trabajador inválido'),
-  // ✅ NUEVO
   body('cuadrilla').optional().isMongoId().withMessage('ID de cuadrilla inválido'),
   body('finca').optional().isMongoId().withMessage('ID de finca inválido'),
   body('tipo').optional().isIn(Object.values(TIPOS_NOVEDAD)).withMessage('Tipo de novedad inválido'),
   body('descripcion').optional().trim().isLength({ min: 10, max: 500 }).withMessage('La descripción debe tener entre 10 y 500 caracteres'),
-  // ✅ NUEVO
   body('horas').optional({ nullable: true }).isFloat({ min: 0, max: 24 }).withMessage('Las horas deben estar entre 0 y 24'),
   body('dias').optional().isFloat({ min: 0.5 }).withMessage('Los días deben ser al menos 0.5'),
   body('afecta_nomina').optional().isBoolean().withMessage('afecta_nomina debe ser verdadero o falso'),
@@ -141,37 +129,37 @@ const aprobarValidation = [
 ];
 
 // ========================================
-// RUTAS — todas requieren autenticación
+// RUTAS
 // ========================================
 
 router.use(authenticate);
 
-// ── RUTAS ESPECIALES (antes de las rutas con :id) ──────────────────────────
+// ESPECIALES
 
-// Resumen de horas perdidas por lluvia
-router.get('/resumen/horas-lluvia',
-  getResumenHorasLluvia
-);
+router.get('/resumen/horas-lluvia', getResumenHorasLluvia);
 
-// Novedades por trabajador
 router.get('/trabajador/:trabajadorId',
   validateMongoId('trabajadorId'),
   getNovedadesByTrabajador
 );
 
-// ✅ NUEVO: Novedades por cuadrilla
 router.get('/cuadrilla/:cuadrillaId',
   validateMongoId('cuadrillaId'),
   getNovedadesByCuadrilla
 );
 
-// ✅ NUEVO: Novedades por finca
 router.get('/finca/:fincaId',
   validateMongoId('fincaId'),
   getNovedadesByFinca
 );
 
-// ── ACCIONES ──────────────────────────────────────────────────────────────
+// 🔥 NUEVA RUTA NO TRABAJADO
+router.post('/no-trabajado',
+  authorize(ROLES.ADMIN_SISTEMA, ROLES.JEFE_OPERACIONES, ROLES.SUPERVISOR, ROLES.TALENTO_HUMANO),
+  crearNoTrabajado
+);
+
+// ACCIONES
 
 router.post('/:id/aprobar',
   authorize(ROLES.ADMIN_SISTEMA, ROLES.JEFE_OPERACIONES, ROLES.TALENTO_HUMANO),
@@ -187,12 +175,14 @@ router.post('/:id/rechazar',
   rechazarNovedad
 );
 
-// ── CRUD BÁSICO ───────────────────────────────────────────────────────────
+// CRUD
 
-// GET /api/v1/novedades?trabajador=&tipo=&estado=&cuadrilla=&finca=&fecha_inicio=&fecha_fin=
 router.get('/', getNovedades);
 
-router.get('/:id', validateMongoId('id'), getNovedad);
+router.get('/:id',
+  validateMongoId('id'),
+  getNovedad
+);
 
 router.post('/',
   authorize(ROLES.ADMIN_SISTEMA, ROLES.JEFE_OPERACIONES, ROLES.SUPERVISOR, ROLES.TALENTO_HUMANO),

@@ -7,15 +7,12 @@ const { asyncHandler, ApiError } = require('../../middlewares/errorHandler');
 // ========================================
 // POPULATE REUTILIZABLE
 // ========================================
-// CORRECCIÓN: el modelo Persona usa "nombres" y "apellidos" (con S),
-// no "nombre" y "apellido". Usando los nombres incorrectos el populate
-// devuelve esos campos como null en Postman y en el frontend.
 const POPULATE_NOVEDAD = [
-  { path: 'trabajador',    select: 'nombres apellidos documento' }, // ← CORREGIDO
+  { path: 'trabajador',    select: 'nombres apellidos documento' },
   { path: 'cuadrilla',     select: 'nombre codigo' },
   { path: 'finca',         select: 'nombre codigo' },
-  { path: 'registrado_por', select: 'nombres apellidos' },         // ← CORREGIDO
-  { path: 'aprobado_por',  select: 'nombres apellidos' }           // ← CORREGIDO
+  { path: 'registrado_por', select: 'nombres apellidos' },
+  { path: 'aprobado_por',  select: 'nombres apellidos' }
 ];
 
 // ========================================
@@ -122,6 +119,64 @@ const createNovedad = asyncHandler(async (req, res) => {
   await novedad.populate(POPULATE_NOVEDAD);
 
   res.status(201).json({ success: true, message: 'Novedad creada exitosamente', data: novedad });
+});
+
+// ========================================
+// 🔥 NUEVO (AGREGADO SIN BORRAR NADA)
+// ========================================
+const crearNoTrabajado = asyncHandler(async (req, res) => {
+  const {
+    trabajador,
+    fecha,
+    horas,
+    motivo,
+    cuadrilla,
+    finca
+  } = req.body;
+
+  if (!trabajador || !fecha) {
+    throw new ApiError(400, 'Trabajador y fecha son obligatorios');
+  }
+
+  const personaRegistrador = await resolverRegistrador(req.user.id, req.body);
+
+  const trabajadorExiste = await Persona.findById(trabajador);
+  if (!trabajadorExiste) throw new ApiError(404, 'El trabajador no existe');
+
+  const fechaInicioDia = new Date(fecha);
+  fechaInicioDia.setHours(0, 0, 0, 0);
+
+  const fechaFinDia = new Date(fecha);
+  fechaFinDia.setHours(23, 59, 59, 999);
+
+  const existe = await Novedad.findOne({
+    trabajador,
+    tipo: "NO_TRABAJADO",
+    fecha: { $gte: fechaInicioDia, $lte: fechaFinDia }
+  });
+
+  if (existe) {
+    throw new ApiError(400, 'Ya existe registro NO_TRABAJADO ese día');
+  }
+
+  const nueva = await Novedad.create({
+    trabajador,
+    fecha,
+    horas,
+    motivo,
+    cuadrilla,
+    finca,
+    tipo: "NO_TRABAJADO",
+    registrado_por: personaRegistrador._id
+  });
+
+  await nueva.populate(POPULATE_NOVEDAD);
+
+  res.status(201).json({
+    success: true,
+    message: 'No trabajado registrado correctamente',
+    data: nueva
+  });
 });
 
 const updateNovedad = asyncHandler(async (req, res) => {
@@ -276,6 +331,7 @@ module.exports = {
   getNovedades,
   getNovedad,
   createNovedad,
+  crearNoTrabajado, // 👈 agregado
   updateNovedad,
   aprobarNovedad,
   rechazarNovedad,

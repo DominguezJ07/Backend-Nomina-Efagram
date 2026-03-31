@@ -1,7 +1,11 @@
+// src/Ejecucion/models/novedad.model.js
+
 const mongoose = require('mongoose');
 const { TIPOS_NOVEDAD } = require('../../config/constants');
 
 const novedadSchema = new mongoose.Schema({
+
+  // ─── IDENTIFICACIÓN ───────────────────────────────────────────────────────
   codigo: {
     type: String,
     required: [true, 'El código es obligatorio'],
@@ -10,81 +14,73 @@ const novedadSchema = new mongoose.Schema({
     trim: true
   },
 
-  // Fecha de la novedad
+  // ─── FECHA ────────────────────────────────────────────────────────────────
   fecha: {
     type: Date,
     required: [true, 'La fecha es obligatoria'],
     index: true
   },
 
-  // Trabajador afectado
+  // ─── TRABAJADOR / EMPLEADO ────────────────────────────────────────────────
+  // Compatible con ambas versiones: ref unificada como 'Persona'
   trabajador: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Persona',
     required: [true, 'El trabajador es obligatorio']
   },
 
-  // ✅ NUEVO: Cuadrilla afectada
+  // ─── CUADRILLA ────────────────────────────────────────────────────────────
   cuadrilla: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Cuadrilla',
-    default: null
+    required: [true, 'La cuadrilla es obligatoria']   // requerida según modelo Ejecucion
   },
 
-  // ✅ NUEVO: Finca donde ocurre la novedad
+  // ─── FINCA ────────────────────────────────────────────────────────────────
   finca: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Finca',
     default: null
   },
 
-  // Tipo de novedad — ✅ CORREGIDO: sincronizado con constants.js (incluye LLUVIA, INSUMOS, HERRAMIENTAS)
+  // ─── SUBPROYECTO (nuevo desde modelo Ejecucion) ───────────────────────────
+  subproyecto: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Subproyecto',
+    default: null
+  },
+
+  // ─── TIPO DE NOVEDAD ──────────────────────────────────────────────────────
+  // Sincronizado con constants.js; se amplía con tipos del modelo Ejecucion
   tipo: {
     type: String,
-    enum: Object.values(TIPOS_NOVEDAD),
+    enum: Object.values(TIPOS_NOVEDAD),   // debe incluir NO_TRABAJADO, OTRO, LLUVIA, etc.
     required: [true, 'El tipo de novedad es obligatorio']
   },
 
-  // ✅ NUEVO: Horas no trabajadas (especialmente útil para LLUVIA y paradas parciales)
+  // ─── HORAS NO TRABAJADAS ──────────────────────────────────────────────────
   horas: {
     type: Number,
+    required: [true, 'Las horas son obligatorias'],
     min: [0, 'Las horas no pueden ser negativas'],
     max: [24, 'Las horas no pueden superar 24'],
-    default: null,
     validate: {
       validator: function (value) {
-        // Si hay horas, no debería haber días completos simultáneamente (a menos que sea nulo)
-        if (value !== null && value !== undefined && this.dias && this.dias >= 1) {
-          // Permitir ambos, pero advertir en lógica de negocio
-          return true;
-        }
-        return true;
+        // Permite coexistir con `dias`, la lógica de negocio decide cuál aplica
+        return value >= 0;
       },
       message: 'Valor de horas inválido'
     }
   },
 
-  // Afecta la nómina
-  afecta_nomina: {
-    type: Boolean,
-    default: true
-  },
-
-  // Descripción
-  descripcion: {
-    type: String,
-    required: [true, 'La descripción es obligatoria'],
-    trim: true
-  },
-
-  // Duración (en días) — para novedades de días completos
+  // ─── DURACIÓN EN DÍAS (para novedades de días completos) ─────────────────
   dias: {
     type: Number,
     default: 1,
     min: [0.5, 'Mínimo medio día']
   },
 
-  // Rango de fechas (si aplica)
+  // ─── RANGO DE FECHAS ──────────────────────────────────────────────────────
   fecha_inicio: {
     type: Date
   },
@@ -99,20 +95,34 @@ const novedadSchema = new mongoose.Schema({
     }
   },
 
-  // Documentos de soporte
+  // ─── DESCRIPCIÓN / MOTIVO ─────────────────────────────────────────────────
+  // `descripcion` (original) y `motivo` (Ejecucion) se unifican en `descripcion`
+  descripcion: {
+    type: String,
+    required: [true, 'La descripción / motivo es obligatorio'],
+    trim: true
+  },
+
+  // ─── AFECTA NÓMINA ────────────────────────────────────────────────────────
+  afecta_nomina: {
+    type: Boolean,
+    default: true
+  },
+
+  // ─── DOCUMENTO DE SOPORTE ────────────────────────────────────────────────
   documento_soporte: {
     type: String,
     trim: true
   },
 
-  // Quien registra
+  // ─── REGISTRO ────────────────────────────────────────────────────────────
   registrado_por: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Persona',
     required: [true, 'Quien registra es obligatorio']
   },
 
-  // Aprobación
+  // ─── APROBACIÓN ───────────────────────────────────────────────────────────
   requiere_aprobacion: {
     type: Boolean,
     default: false
@@ -133,120 +143,164 @@ const novedadSchema = new mongoose.Schema({
     trim: true
   },
 
-  // Estado
+  // ─── ESTADO ───────────────────────────────────────────────────────────────
   estado: {
     type: String,
     enum: ['PENDIENTE', 'APROBADA', 'RECHAZADA', 'ANULADA'],
     default: 'PENDIENTE'
   },
 
-  // Observaciones
+  // ─── OBSERVACIONES ────────────────────────────────────────────────────────
   observaciones: {
     type: String,
     trim: true
   }
+
 }, {
   timestamps: true,
   versionKey: false
 });
 
-// ========================================
+// ============================================================================
 // ÍNDICES
-// ========================================
+// ============================================================================
 
 novedadSchema.index({ trabajador: 1, fecha: -1 });
 novedadSchema.index({ tipo: 1, fecha: -1 });
 novedadSchema.index({ estado: 1 });
 novedadSchema.index({ codigo: 1 }, { unique: true });
-// ✅ NUEVO: índices para cuadrilla y finca
 novedadSchema.index({ cuadrilla: 1, fecha: -1 });
 novedadSchema.index({ finca: 1, fecha: -1 });
-// ✅ NUEVO: índice para consultas de horas perdidas por lluvia en un período
+novedadSchema.index({ subproyecto: 1, fecha: -1 });
 novedadSchema.index({ tipo: 1, finca: 1, fecha: -1 });
 
-// ========================================
+// ============================================================================
 // MÉTODOS DE INSTANCIA
-// ========================================
+// ============================================================================
 
-// Aprobar novedad
+/** Aprueba la novedad y la guarda */
 novedadSchema.methods.aprobar = function (aprobadoPorId) {
-  this.aprobado = true;
-  this.estado = 'APROBADA';
-  this.aprobado_por = aprobadoPorId;
+  this.aprobado        = true;
+  this.estado          = 'APROBADA';
+  this.aprobado_por    = aprobadoPorId;
   this.fecha_aprobacion = new Date();
   return this.save();
 };
 
-// Rechazar novedad
+/** Rechaza la novedad con un motivo y la guarda */
 novedadSchema.methods.rechazar = function (aprobadoPorId, motivo) {
-  this.aprobado = false;
-  this.estado = 'RECHAZADA';
-  this.aprobado_por = aprobadoPorId;
+  this.aprobado         = false;
+  this.estado           = 'RECHAZADA';
+  this.aprobado_por     = aprobadoPorId;
   this.fecha_aprobacion = new Date();
-  this.motivo_rechazo = motivo;
+  this.motivo_rechazo   = motivo;
   return this.save();
 };
 
-// ========================================
+// ============================================================================
 // MÉTODOS ESTÁTICOS
-// ========================================
+// ============================================================================
 
-// Obtener novedades de un período con filtros opcionales
+/**
+ * Novedades de un período con filtros opcionales.
+ * Popula trabajador, cuadrilla, finca, subproyecto, registrado_por y aprobado_por.
+ */
 novedadSchema.statics.getNovedadesPeriodo = function (fechaInicio, fechaFin, filtros = {}) {
   return this.find({
     fecha: { $gte: fechaInicio, $lte: fechaFin },
     ...filtros
   })
-    .populate('trabajador', 'nombre apellido documento')
-    .populate('cuadrilla', 'nombre codigo')
-    .populate('finca', 'nombre codigo')
-    .populate('registrado_por', 'nombre apellido')
-    .populate('aprobado_por', 'nombre apellido')
+    .populate('trabajador',    'nombre apellido documento')
+    .populate('cuadrilla',     'nombre codigo')
+    .populate('finca',         'nombre codigo')
+    .populate('subproyecto',   'nombre codigo')
+    .populate('registrado_por','nombre apellido')
+    .populate('aprobado_por',  'nombre apellido')
     .sort({ fecha: -1 });
 };
 
-// ✅ NUEVO: Obtener total de horas perdidas por lluvia en una finca y período
+/**
+ * Total de horas perdidas por lluvia en una finca y período.
+ * Excluye novedades RECHAZADAS y sin valor de horas.
+ */
 novedadSchema.statics.getHorasPerdidasLluvia = function (fincaId, fechaInicio, fechaFin) {
   return this.aggregate([
     {
       $match: {
-        finca: fincaId,
-        tipo: 'LLUVIA',
+        finca:  fincaId,
+        tipo:   'LLUVIA',
         estado: { $ne: 'RECHAZADA' },
-        fecha: { $gte: new Date(fechaInicio), $lte: new Date(fechaFin) },
-        horas: { $ne: null }
+        fecha:  { $gte: new Date(fechaInicio), $lte: new Date(fechaFin) },
+        horas:  { $ne: null }
       }
     },
     {
       $group: {
-        _id: '$finca',
+        _id:                  '$finca',
         total_horas_perdidas: { $sum: '$horas' },
-        cantidad_eventos: { $sum: 1 }
+        cantidad_eventos:     { $sum: 1 }
       }
     }
   ]);
 };
 
-// ✅ NUEVO: Obtener resumen de horas perdidas agrupado por tipo y fecha
+/**
+ * Resumen de horas perdidas agrupado por tipo y fecha.
+ * Acepta filtros adicionales en el $match.
+ */
 novedadSchema.statics.getResumenHorasPerdidas = function (filtros = {}) {
   return this.aggregate([
     {
       $match: {
-        horas: { $ne: null },
+        horas:  { $ne: null },
         estado: { $ne: 'RECHAZADA' },
         ...filtros
       }
     },
     {
       $group: {
-        _id: { tipo: '$tipo', fecha: { $dateToString: { format: '%Y-%m-%d', date: '$fecha' } } },
+        _id: {
+          tipo:  '$tipo',
+          fecha: { $dateToString: { format: '%Y-%m-%d', date: '$fecha' } }
+        },
         total_horas: { $sum: '$horas' },
-        cantidad: { $sum: 1 }
+        cantidad:    { $sum: 1 }
       }
     },
     { $sort: { '_id.fecha': -1 } }
   ]);
 };
+
+/**
+ * Resumen de horas NO trabajadas agrupadas por cuadrilla y subproyecto.
+ * Útil para reportes de ejecución de obra.
+ */
+novedadSchema.statics.getHorasPorCuadrillaSubproyecto = function (
+  subproyectoId,
+  fechaInicio,
+  fechaFin
+) {
+  return this.aggregate([
+    {
+      $match: {
+        subproyecto: subproyectoId,
+        tipo:        'NO_TRABAJADO',
+        estado:      { $ne: 'RECHAZADA' },
+        fecha:       { $gte: new Date(fechaInicio), $lte: new Date(fechaFin) }
+      }
+    },
+    {
+      $group: {
+        _id:          '$cuadrilla',
+        total_horas:  { $sum: '$horas' },
+        cantidad:     { $sum: 1 }
+      }
+    },
+    { $sort: { total_horas: -1 } }
+  ]);
+};
+
+// ============================================================================
 
 const Novedad = mongoose.model('Novedad', novedadSchema);
 
