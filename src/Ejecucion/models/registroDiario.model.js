@@ -17,6 +17,14 @@ const registroDiarioSchema = new mongoose.Schema({
     index: true
   },
   
+  // 🔥 NUEVO: Subproyecto (CLAVE PARA TU CASO)
+  subproyecto: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Subproyecto',
+    required: true,
+    index: true
+  },
+  
   // Trabajador
   trabajador: {
     type: mongoose.Schema.Types.ObjectId,
@@ -37,7 +45,8 @@ const registroDiarioSchema = new mongoose.Schema({
   cuadrilla: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Cuadrilla',
-    default: null
+    default: null,
+    index: true
   },
   
   // Cantidad ejecutada en el día
@@ -47,7 +56,7 @@ const registroDiarioSchema = new mongoose.Schema({
     min: [0, 'La cantidad no puede ser negativa']
   },
   
-  // Horas trabajadas
+  // 🔥 Horas trabajadas (YA ESTÁ BIEN, SOLO LA USAREMOS)
   horas_trabajadas: {
     type: Number,
     default: 8,
@@ -107,7 +116,15 @@ const registroDiarioSchema = new mongoose.Schema({
   versionKey: false
 });
 
-// Índices compuestos - solo aplica unique cuando trabajador NO es null
+// ========================================
+// ÍNDICES
+// ========================================
+
+// 🔥 NUEVO: clave para tu sistema
+registroDiarioSchema.index({ subproyecto: 1, fecha: -1 });
+registroDiarioSchema.index({ subproyecto: 1, cuadrilla: 1, fecha: -1 });
+
+// Índices existentes
 registroDiarioSchema.index(
   { fecha: 1, trabajador: 1, proyecto_actividad_lote: 1 },
   { 
@@ -118,11 +135,16 @@ registroDiarioSchema.index(
     }
   }
 );
+
 registroDiarioSchema.index({ trabajador: 1, fecha: -1 });
 registroDiarioSchema.index({ proyecto_actividad_lote: 1, fecha: -1 });
 registroDiarioSchema.index({ registrado_por: 1, fecha: -1 });
 
-// REGLA: Un trabajador solo puede tener UN registro por día por PAL (solo si ambos existen)
+// ========================================
+// VALIDACIÓN
+// ========================================
+
+// REGLA: Un trabajador solo puede tener UN registro por día por PAL
 registroDiarioSchema.pre('save', async function() {
   if (this.isNew && this.trabajador && this.proyecto_actividad_lote) {
     const existente = await this.constructor.findOne({
@@ -137,7 +159,11 @@ registroDiarioSchema.pre('save', async function() {
   }
 });
 
-// Método para marcar como editado
+// ========================================
+// MÉTODOS
+// ========================================
+
+// Marcar como editado
 registroDiarioSchema.methods.marcarEditado = function(editadoPor, motivo) {
   this.editado = true;
   this.fecha_edicion = new Date();
@@ -146,7 +172,7 @@ registroDiarioSchema.methods.marcarEditado = function(editadoPor, motivo) {
   return this.save();
 };
 
-// Método estático para obtener registros de una semana
+// Obtener registros por semana
 registroDiarioSchema.statics.getRegistrosSemana = function(fechaInicio, fechaFin, filtros = {}) {
   return this.find({
     fecha: { $gte: fechaInicio, $lte: fechaFin },
@@ -155,19 +181,25 @@ registroDiarioSchema.statics.getRegistrosSemana = function(fechaInicio, fechaFin
     .populate('trabajador')
     .populate('proyecto_actividad_lote')
     .populate('cuadrilla')
+    .populate('subproyecto') // 🔥 NUEVO
     .populate('registrado_por')
     .sort({ fecha: 1 });
 };
 
-// Método estático para obtener registros por trabajador
+// Obtener por trabajador
 registroDiarioSchema.statics.getRegistrosByTrabajador = function(trabajadorId, fechaInicio, fechaFin) {
   return this.find({
     trabajador: trabajadorId,
     fecha: { $gte: fechaInicio, $lte: fechaFin }
   })
     .populate('proyecto_actividad_lote')
+    .populate('subproyecto') // 🔥 NUEVO
     .sort({ fecha: -1 });
 };
+
+// ========================================
+// EXPORT
+// ========================================
 
 const RegistroDiario = mongoose.model('RegistroDiario', registroDiarioSchema);
 

@@ -6,16 +6,15 @@ const { asyncHandler, ApiError } = require('../../middlewares/errorHandler');
 
 /**
  * @desc    Obtener todos los registros diarios
- * @route   GET /api/v1/registros-diarios
- * @access  Private
  */
 const getRegistros = asyncHandler(async (req, res) => {
-  const { trabajador, pal, fecha_inicio, fecha_fin, estado } = req.query;
+  const { trabajador, pal, fecha_inicio, fecha_fin, estado, subproyecto } = req.query;
 
   const filter = {};
   if (trabajador) filter.trabajador = trabajador;
   if (pal) filter.proyecto_actividad_lote = pal;
   if (estado) filter.estado = estado;
+  if (subproyecto) filter.subproyecto = subproyecto;
 
   if (fecha_inicio && fecha_fin) {
     filter.fecha = {
@@ -28,6 +27,7 @@ const getRegistros = asyncHandler(async (req, res) => {
     .populate('trabajador')
     .populate('proyecto_actividad_lote')
     .populate('cuadrilla')
+    .populate('subproyecto') // 🔥 NUEVO
     .populate('registrado_por')
     .sort({ fecha: -1 });
 
@@ -39,9 +39,7 @@ const getRegistros = asyncHandler(async (req, res) => {
 });
 
 /**
- * @desc    Obtener un registro diario por ID (con datos completos para vista detalle)
- * @route   GET /api/v1/registros-diarios/:id
- * @access  Private
+ * @desc    Obtener un registro por ID
  */
 const getRegistro = asyncHandler(async (req, res) => {
   const registro = await RegistroDiario.findById(req.params.id)
@@ -60,6 +58,7 @@ const getRegistro = asyncHandler(async (req, res) => {
         { path: 'miembros.persona' }
       ]
     })
+    .populate('subproyecto') // 🔥 NUEVO
     .populate('registrado_por')
     .populate('editado_por');
 
@@ -75,12 +74,11 @@ const getRegistro = asyncHandler(async (req, res) => {
 
 /**
  * @desc    Crear registro diario
- * @route   POST /api/v1/registros-diarios
- * @access  Private (Admin, Jefe, Supervisor)
  */
 const createRegistro = asyncHandler(async (req, res) => {
   const {
     fecha,
+    subproyecto, // 🔥 NUEVO
     trabajador,
     proyecto_actividad_lote,
     cuadrilla,
@@ -93,6 +91,11 @@ const createRegistro = asyncHandler(async (req, res) => {
     estado
   } = req.body;
 
+  // 🔥 VALIDACIÓN CLAVE
+  if (!subproyecto) {
+    throw new ApiError(400, 'El subproyecto es obligatorio');
+  }
+
   const persona = await Persona.findOne({ usuario: req.user.id });
   const registradoPorId = persona ? persona._id : (registrado_por || null);
 
@@ -104,7 +107,11 @@ const createRegistro = asyncHandler(async (req, res) => {
   }
 
   if (trabajador) {
-    await registroDiarioService.validarRegistroUnico(fecha, trabajador, proyecto_actividad_lote);
+    await registroDiarioService.validarRegistroUnico(
+      fecha,
+      trabajador,
+      proyecto_actividad_lote
+    );
   }
 
   const count = await RegistroDiario.countDocuments();
@@ -113,6 +120,7 @@ const createRegistro = asyncHandler(async (req, res) => {
   const registro = await RegistroDiario.create({
     codigo,
     fecha,
+    subproyecto, // 🔥 CLAVE
     trabajador: trabajador || null,
     proyecto_actividad_lote,
     cuadrilla,
@@ -130,6 +138,7 @@ const createRegistro = asyncHandler(async (req, res) => {
   await registro.populate([
     'trabajador',
     'proyecto_actividad_lote',
+    'subproyecto', // 🔥 NUEVO
     { path: 'cuadrilla', populate: [{ path: 'supervisor' }, { path: 'miembros.persona' }] },
     'registrado_por'
   ]);
@@ -143,8 +152,6 @@ const createRegistro = asyncHandler(async (req, res) => {
 
 /**
  * @desc    Actualizar registro diario
- * @route   PUT /api/v1/registros-diarios/:id
- * @access  Private (Admin, Jefe, Supervisor)
  */
 const updateRegistro = asyncHandler(async (req, res) => {
   let registro = await RegistroDiario.findById(req.params.id);
@@ -193,6 +200,7 @@ const updateRegistro = asyncHandler(async (req, res) => {
   await registro.populate([
     'trabajador',
     'proyecto_actividad_lote',
+    'subproyecto', // 🔥 NUEVO
     { path: 'cuadrilla', populate: [{ path: 'supervisor' }, { path: 'miembros.persona' }] },
     'registrado_por',
     'editado_por'
@@ -206,13 +214,12 @@ const updateRegistro = asyncHandler(async (req, res) => {
 });
 
 /**
- * @desc    Eliminar un registro diario
- * @route   DELETE /api/v1/registros-diarios/:id
- * @access  Private (Admin, Jefe)
+ * @desc    Eliminar registro
  */
 const deleteRegistro = asyncHandler(async (req, res) => {
   const registro = await registroDiarioService.validateRegistroExists(req.params.id);
   const palId = registro.proyecto_actividad_lote;
+
   await registro.deleteOne();
   await registroDiarioService.actualizarCantidadPAL(palId);
 
@@ -223,9 +230,7 @@ const deleteRegistro = asyncHandler(async (req, res) => {
 });
 
 /**
- * @desc    Obtener resumen de trabajador en un período
- * @route   GET /api/v1/registros-diarios/resumen/:trabajadorId
- * @access  Private
+ * @desc    Resumen por trabajador
  */
 const getResumenTrabajador = asyncHandler(async (req, res) => {
   const { fecha_inicio, fecha_fin } = req.query;
@@ -247,9 +252,7 @@ const getResumenTrabajador = asyncHandler(async (req, res) => {
 });
 
 /**
- * @desc    Obtener registros de una semana
- * @route   GET /api/v1/registros-diarios/semana/:semanaId
- * @access  Private
+ * @desc    Registros por semana
  */
 const getRegistrosSemana = asyncHandler(async (req, res) => {
   const SemanaOperativa = require('../../ControlSemanal/models/semanaOperativa.model');
