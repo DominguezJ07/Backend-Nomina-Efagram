@@ -2,6 +2,8 @@ const Subproyecto = require('../models/subproyecto.model');
 const Proyecto = require('../models/proyecto.model');
 const Nucleo = require('../../Territorial/models/nucleo.model');
 const { asyncHandler, ApiError } = require('../../middlewares/errorHandler');
+const RegistroDiario = require('../../Ejecucion/models/registroDiario.model');
+const HorasNoTrabajadas = require('../../HorasNoTrabajadas/models/HorasNoTrabajadas.model');
 
 /**
  * GET /api/v1/subproyectos?proyecto=id
@@ -20,10 +22,52 @@ const getSubproyectos = asyncHandler(async (req, res) => {
     .populate('cliente', 'nombre razon_social')
     .sort({ createdAt: -1 });
 
+  // 🔥 NUEVO: Agregar horas trabajadas y no trabajadas
+  const subproyectosConHoras = await Promise.all(
+    subproyectos.map(async (sub) => {
+
+      // 🟢 HORAS TRABAJADAS
+      const horasTrabajadas = await RegistroDiario.aggregate([
+        {
+          $match: {
+            subproyectoId: sub._id
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: "$horasTrabajadas" } // ⚠️ Verifica este campo en tu modelo
+          }
+        }
+      ]);
+
+      // 🔴 HORAS NO TRABAJADAS
+      const horasNoTrabajadas = await HorasNoTrabajadas.aggregate([
+        {
+          $match: {
+            subproyectoId: sub._id
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: "$horas" }
+          }
+        }
+      ]);
+
+      return {
+        ...sub.toObject(),
+        horasTrabajadas: horasTrabajadas[0]?.total || 0,
+        horasNoTrabajadas: horasNoTrabajadas[0]?.total || 0
+      };
+    })
+  );
+
   res.status(200).json({
     success: true,
-    count: subproyectos.length,
-    data: subproyectos,
+    count: subproyectosConHoras.length,
+    data: subproyectosConHoras,
   });
 });
 
@@ -51,12 +95,10 @@ const createSubproyecto = asyncHandler(async (req, res) => {
     supervisor, cliente, fecha_inicio, fecha_fin_estimada, observaciones,
   } = req.body;
 
-  // Validar proyecto
   const proyecto = await Proyecto.findById(proyectoId).populate('zona');
   if (!proyecto) throw new ApiError(404, 'Proyecto no encontrado');
   if (!proyecto.zona) throw new ApiError(400, 'El proyecto no tiene zona asignada');
 
-  // Validar que los núcleos pertenezcan a la zona del proyecto
   if (nucleos && nucleos.length > 0) {
     const nucleosDocs = await Nucleo.find({ _id: { $in: nucleos } });
     for (const nucleo of nucleosDocs) {
@@ -107,7 +149,6 @@ const updateSubproyecto = asyncHandler(async (req, res) => {
     throw new ApiError(400, 'No se puede modificar un subproyecto cerrado');
   }
 
-  // Validar núcleos si se actualizan
   if (req.body.nucleos && req.body.nucleos.length > 0) {
     const proyecto = await Proyecto.findById(sub.proyecto._id || sub.proyecto);
     if (proyecto?.zona) {
@@ -151,6 +192,7 @@ const deleteSubproyecto = asyncHandler(async (req, res) => {
   const tieneAsignaciones = await AsignacionActividad.countDocuments({
     subproyecto: req.params.id,
   });
+
   if (tieneAsignaciones > 0) {
     throw new ApiError(
       400,
@@ -169,13 +211,13 @@ const deleteSubproyecto = asyncHandler(async (req, res) => {
 
 /**
  * GET /api/v1/subproyectos/:id/nucleos-disponibles
- * Retorna los núcleos de la zona del proyecto padre
  */
 const getNucleosDisponibles = asyncHandler(async (req, res) => {
   const sub = await Subproyecto.findById(req.params.id).populate({
     path: 'proyecto',
     select: 'zona',
   });
+
   if (!sub) throw new ApiError(404, 'Subproyecto no encontrado');
 
   const zonaId = sub.proyecto?.zona;
@@ -187,7 +229,11 @@ const getNucleosDisponibles = asyncHandler(async (req, res) => {
     .select('codigo nombre zona')
     .sort({ nombre: 1 });
 
-  res.status(200).json({ success: true, count: nucleos.length, data: nucleos });
+  res.status(200).json({
+    success: true,
+    count: nucleos.length,
+    data: nucleos
+  });
 });
 
 module.exports = {
