@@ -18,34 +18,52 @@ const PORT = process.env.PORT || 5000;
 // Seguridad
 app.use(helmet());
 
-// CORS
-const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
+// ========================================
+// 🔥 CORS CORREGIDO (TU PROBLEMA REAL)
+// ========================================
+
+const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5174')
   .split(',')
   .map(o => o.trim());
 
-app.use(cors({
+const corsOptions = {
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
+    // Permitir Postman o requests sin origin
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
     } else {
-      callback(new Error(`CORS bloqueado para: ${origin}`));
+      logger.warn(`❌ CORS bloqueado para: ${origin}`);
+      return callback(new Error(`CORS bloqueado para: ${origin}`));
     }
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-}));
+};
 
-// Body parsing
+// 🔥 APLICAR CORS
+app.use(cors(corsOptions));
+
+
+// ========================================
+// BODY PARSER
+// ========================================
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Logging HTTP (desarrollo)
+// ========================================
+// LOGGING
+// ========================================
+
+// Desarrollo
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
-// Logging HTTP personalizado (producción)
+// Producción / personalizado
 app.use((req, res, next) => {
   const start = Date.now();
   res.on('finish', () => {
@@ -106,7 +124,7 @@ const registroDiarioRoutes = require('./Ejecucion/routes/registroDiario.routes')
 const novedadRoutes = require('./Ejecucion/routes/novedad.routes');
 const semanaOperativaRoutes = require('./ControlSemanal/routes/semanaOperativa.routes');
 
-// 🔥 NUEVO: Horas No Trabajadas
+// Horas No Trabajadas
 const horasNoTrabajadasRoutes = require('./HorasNoTrabajadas/routes/horasNoTrabajadas.routes');
 
 // Catálogos
@@ -136,7 +154,7 @@ const registroDiarioProgramacionRoutes = require('./Proyectos/routes/registroDia
 const reportesRoutes = require('./Reportes/routes/reportes.routes');
 
 // ========================================
-// RUTAS DE LA API
+// RUTAS API
 // ========================================
 
 const apiRouter = express.Router();
@@ -170,7 +188,7 @@ apiRouter.use('/registros-diarios', registroDiarioRoutes);
 apiRouter.use('/novedades', novedadRoutes);
 apiRouter.use('/semanas', semanaOperativaRoutes);
 
-// 🔥 NUEVO ENDPOINT
+// Horas no trabajadas
 apiRouter.use('/horas-no-trabajadas', horasNoTrabajadasRoutes);
 
 // Catálogos
@@ -178,13 +196,13 @@ apiRouter.use('/procesos', procesoRoutes);
 apiRouter.use('/intervenciones', intervencionRoutes);
 apiRouter.use('/cargos', cargoRoutes);
 
-// Control Semanal
+// Control semanal
 apiRouter.use('/consolidados', consolidadoRoutes);
 apiRouter.use('/indicadores', indicadorRoutes);
 apiRouter.use('/alertas', alertaRoutes);
 apiRouter.use('/control-semanal', controlSemanalRoutes);
 
-// Proyectos adicionales
+// Proyectos extra
 apiRouter.use('/actividades-proyecto', actividadProyectoRoutes);
 apiRouter.use('/subproyectos', subproyectoRoutes);
 apiRouter.use('/asignaciones', asignacionActividadRoutes);
@@ -199,11 +217,11 @@ apiRouter.use('/registros-diarios-programacion', registroDiarioProgramacionRoute
 // Reportes
 apiRouter.use('/reportes', reportesRoutes);
 
-// Montar en /api/v1
+// 🔥 RUTA BASE
 app.use('/api/v1', apiRouter);
 
 // ========================================
-// MANEJO DE ERRORES
+// ERRORES
 // ========================================
 
 app.use(notFound);
@@ -216,20 +234,23 @@ app.use(errorHandler);
 const startServer = async () => {
   try {
     await connectDB();
+
     app.listen(PORT, () => {
       logger.success(`✓ Servidor ejecutándose en puerto ${PORT}`);
       logger.info(`✓ Ambiente: ${process.env.NODE_ENV || 'development'}`);
       logger.info(`✓ URL: http://localhost:${PORT}`);
-      logger.info(`✓ Health Check: http://localhost:${PORT}/health`);
+      logger.info(`✓ Health: http://localhost:${PORT}/health`);
     });
+
   } catch (error) {
     logger.error('Error al iniciar el servidor', { error: error.message });
     process.exit(1);
   }
 };
 
-process.on('unhandledRejection', (reason, promise) => {
-  logger.error('Unhandled Rejection', { reason, promise });
+// Manejo de errores globales
+process.on('unhandledRejection', (reason) => {
+  logger.error('Unhandled Rejection', { reason });
   process.exit(1);
 });
 
