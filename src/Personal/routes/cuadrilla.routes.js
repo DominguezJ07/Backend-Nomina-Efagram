@@ -18,8 +18,7 @@ const router = express.Router();
 // Validaciones para crear
 const createCuadrillaValidation = [
   body('codigo')
-    .notEmpty()
-    .withMessage('El código es obligatorio')
+    .optional()
     .trim()
     .toUpperCase(),
   body('nombre')

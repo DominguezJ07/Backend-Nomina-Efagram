@@ -54,6 +54,15 @@ const cuadrillaSchema = new mongoose.Schema({
   versionKey: false
 });
 
+// Auto-generar código si no viene en el payload
+cuadrillaSchema.pre('validate', function (next) {
+  if (!this.codigo) {
+    const ts = Date.now().toString(36).toUpperCase();
+    this.codigo = `CUA-${ts}`;
+  }
+  next();
+});
+
 // Índices
 cuadrillaSchema.index({ codigo: 1 });
 cuadrillaSchema.index({ supervisor: 1 });
