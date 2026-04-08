@@ -39,7 +39,9 @@ const createContratoValidation = [
     .isArray({ min: 1 }).withMessage('Debe asignar al menos una cuadrilla')
     .custom((v) => v.every((id) => /^[0-9a-fA-F]{24}$/.test(id)))
     .withMessage('Uno o más IDs de cuadrilla son inválidos'),
-  body('fecha_inicio').notEmpty().isISO8601().withMessage('Fecha de inicio inválida'),
+  body('fecha_inicio')
+  .optional({ nullable: true, checkFalsy: true })
+  .isISO8601().withMessage('Fecha de inicio inválida'),
   body('fecha_fin')
     .optional({ nullable: true, checkFalsy: true })
     .isISO8601().withMessage('Fecha de fin inválida'),

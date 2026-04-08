@@ -95,9 +95,9 @@ const contratoSchema = new mongoose.Schema(
     },
 
     fecha_inicio: {
-      type: Date,
-      required: [true, 'La fecha de inicio es obligatoria'],
-    },
+  type: Date,
+  default: null,
+},
     fecha_fin: {
       type: Date,
       default: null,
@@ -125,12 +125,9 @@ const contratoSchema = new mongoose.Schema(
 
 // ✅ Validación: códigos de lotes únicos dentro del mismo contrato
 contratoSchema.pre('save', function () {
-  if (this.lotes && this.lotes.length > 0) {
-    const codigos = this.lotes.map((l) => l.codigo);
-    const codigosUnicos = new Set(codigos);
-    if (codigosUnicos.size !== codigos.length) {
-      throw new Error('Los códigos de los lotes deben ser únicos dentro del contrato');
-    }
+  // Solo validar si AMBAS fechas existen
+  if (this.fecha_inicio && this.fecha_fin && this.fecha_fin <= this.fecha_inicio) {
+    throw new Error('La fecha de fin debe ser posterior a la fecha de inicio');
   }
 });
 
