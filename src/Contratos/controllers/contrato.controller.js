@@ -89,7 +89,7 @@ const createContrato = asyncHandler(async (req, res) => {
     fecha_inicio,
     fecha_fin: fecha_fin || null,
     observaciones,
-    creado_por: req.user?.personaId || null,
+    creado_por: null, // Se asignará cuando se vincule User con Persona
   });
 
   await contrato.populate(POPULATE_CONTRATO);
