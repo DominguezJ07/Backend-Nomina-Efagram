@@ -22,21 +22,35 @@ app.use(helmet());
 // 🔥 CORS CORREGIDO (TU PROBLEMA REAL)
 // ========================================
 
-const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5174')
+// CORS_ORIGIN puede ser una lista separada por comas, p.ej.:
+// CORS_ORIGIN=http://localhost:5173,http://localhost:5174,https://mi-frontend.onrender.com
+const allowedOrigins = (
+  process.env.CORS_ORIGIN ||
+  'http://localhost:5173,http://localhost:5174'
+)
   .split(',')
-  .map(o => o.trim());
+  .map(o => o.trim())
+  .filter(Boolean);
 
 const corsOptions = {
   origin: (origin, callback) => {
-    // Permitir Postman o requests sin origin
+    // Permitir Postman, curl o requests sin origin (server-to-server)
     if (!origin) return callback(null, true);
 
     if (allowedOrigins.includes(origin)) {
       return callback(null, true);
-    } else {
-      logger.warn(`❌ CORS bloqueado para: ${origin}`);
-      return callback(new Error(`CORS bloqueado para: ${origin}`));
     }
+
+    // En desarrollo permitir cualquier localhost
+    if (
+      process.env.NODE_ENV !== 'production' &&
+      /^http:\/\/localhost(:\d+)?$/.test(origin)
+    ) {
+      return callback(null, true);
+    }
+
+    logger.warn(`❌ CORS bloqueado para: ${origin}. Orígenes permitidos: ${allowedOrigins.join(', ')}`);
+    return callback(new Error(`CORS no permitido para: ${origin}`));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
