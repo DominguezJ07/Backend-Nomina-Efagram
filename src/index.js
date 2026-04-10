@@ -1,6 +1,6 @@
 require('dotenv').config();
 const express = require('express');
-const cors = require('cors');
+const cors = require('cors'); // ✅ SOLO UNA VEZ
 const helmet = require('helmet');
 const morgan = require('morgan');
 const connectDB = require('./config/database');
@@ -19,14 +19,12 @@ const PORT = process.env.PORT || 5000;
 app.use(helmet());
 
 // ========================================
-// 🔥 CORS CORREGIDO (TU PROBLEMA REAL)
+// 🔥 CORS CORREGIDO (VERSIÓN FINAL BIEN HECHA)
 // ========================================
 
-// CORS_ORIGIN puede ser una lista separada por comas, p.ej.:
-// CORS_ORIGIN=http://localhost:5173,http://localhost:5174,https://mi-frontend.onrender.com
 const allowedOrigins = (
   process.env.CORS_ORIGIN ||
-  'http://localhost:5173,http://localhost:5174'
+  'http://localhost:5173,http://localhost:5174,https://frontend-nomina-efagram-neon.vercel.app'
 )
   .split(',')
   .map(o => o.trim())
@@ -34,14 +32,14 @@ const allowedOrigins = (
 
 const corsOptions = {
   origin: (origin, callback) => {
-    // Permitir Postman, curl o requests sin origin (server-to-server)
+    // Permitir requests sin origin (Postman, mobile apps, etc)
     if (!origin) return callback(null, true);
 
     if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
 
-    // En desarrollo permitir cualquier localhost
+    // Permitir localhost en desarrollo
     if (
       process.env.NODE_ENV !== 'production' &&
       /^http:\/\/localhost(:\d+)?$/.test(origin)
@@ -49,7 +47,7 @@ const corsOptions = {
       return callback(null, true);
     }
 
-    logger.warn(`❌ CORS bloqueado para: ${origin}. Orígenes permitidos: ${allowedOrigins.join(', ')}`);
+    logger.warn(`❌ CORS bloqueado para: ${origin}`);
     return callback(new Error(`CORS no permitido para: ${origin}`));
   },
   credentials: true,
@@ -57,9 +55,8 @@ const corsOptions = {
   allowedHeaders: ['Content-Type', 'Authorization'],
 };
 
-// 🔥 APLICAR CORS
+// ✅ APLICAR CORS (SOLO UNA VEZ)
 app.use(cors(corsOptions));
-
 
 // ========================================
 // BODY PARSER
@@ -72,12 +69,10 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // LOGGING
 // ========================================
 
-// Desarrollo
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
-// Producción / personalizado
 app.use((req, res, next) => {
   const start = Date.now();
   res.on('finish', () => {
@@ -142,9 +137,9 @@ const semanaOperativaRoutes = require('./ControlSemanal/routes/semanaOperativa.r
 const horasNoTrabajadasRoutes = require('./HorasNoTrabajadas/routes/horasNoTrabajadas.routes');
 
 // Catálogos
-const procesoRoutes      = require('./Catalogos/routes/proceso.routes');
+const procesoRoutes = require('./Catalogos/routes/proceso.routes');
 const intervencionRoutes = require('./Catalogos/routes/intervencion.routes');
-const cargoRoutes        = require('./Catalogos/routes/cargo.routes');
+const cargoRoutes = require('./Catalogos/routes/cargo.routes');
 
 // Control Semanal
 const consolidadoRoutes = require('./ControlSemanal/routes/consolidado.routes');
@@ -153,8 +148,8 @@ const alertaRoutes = require('./ControlSemanal/routes/alerta.routes');
 const controlSemanalRoutes = require('./ControlSemanal/routes/controlSemanal.routes');
 
 // Proyectos adicionales
-const actividadProyectoRoutes   = require('./Proyectos/routes/actividadProyecto.routes');
-const subproyectoRoutes         = require('./Proyectos/routes/subproyecto.routes');
+const actividadProyectoRoutes = require('./Proyectos/routes/actividadProyecto.routes');
+const subproyectoRoutes = require('./Proyectos/routes/subproyecto.routes');
 const asignacionActividadRoutes = require('./Proyectos/routes/asignacionActividad.routes');
 
 // Contratos
@@ -173,23 +168,18 @@ const reportesRoutes = require('./Reportes/routes/reportes.routes');
 
 const apiRouter = express.Router();
 
-// Autenticación
 apiRouter.use('/auth', authRoutes);
-
-// Territorial
 apiRouter.use('/zonas', zonaRoutes);
 apiRouter.use('/nucleos', nucleoRoutes);
 apiRouter.use('/fincas', fincaRoutes);
 apiRouter.use('/lotes', loteRoutes);
 
-// Personal
 apiRouter.use('/personas', personaRoutes);
 apiRouter.use('/roles', rolRoutes);
 apiRouter.use('/persona-roles', personaRolRoutes);
 apiRouter.use('/cuadrillas', cuadrillaRoutes);
 apiRouter.use('/asignaciones-supervisor', asignacionRoutes);
 
-// Proyectos
 apiRouter.use('/clientes', clienteRoutes);
 apiRouter.use('/proyectos', proyectoRoutes);
 apiRouter.use('/actividades', actividadRoutes);
@@ -197,41 +187,33 @@ apiRouter.use('/pals', palRoutes);
 apiRouter.use('/precios-base', precioBaseRoutes);
 apiRouter.use('/precios-negociados', precioNegociadoRoutes);
 
-// Ejecución
 apiRouter.use('/registros-diarios', registroDiarioRoutes);
 apiRouter.use('/novedades', novedadRoutes);
 apiRouter.use('/semanas', semanaOperativaRoutes);
 
-// Horas no trabajadas
 apiRouter.use('/horas-no-trabajadas', horasNoTrabajadasRoutes);
 
-// Catálogos
 apiRouter.use('/procesos', procesoRoutes);
 apiRouter.use('/intervenciones', intervencionRoutes);
 apiRouter.use('/cargos', cargoRoutes);
 
-// Control semanal
 apiRouter.use('/consolidados', consolidadoRoutes);
 apiRouter.use('/indicadores', indicadorRoutes);
 apiRouter.use('/alertas', alertaRoutes);
 apiRouter.use('/control-semanal', controlSemanalRoutes);
 
-// Proyectos extra
 apiRouter.use('/actividades-proyecto', actividadProyectoRoutes);
 apiRouter.use('/subproyectos', subproyectoRoutes);
 apiRouter.use('/asignaciones', asignacionActividadRoutes);
 
-// Contratos
 apiRouter.use('/contratos', contratoRoutes);
 
-// Programación
 apiRouter.use('/programaciones', programacionRoutes);
 apiRouter.use('/registros-diarios-programacion', registroDiarioProgramacionRoutes);
 
-// Reportes
 apiRouter.use('/reportes', reportesRoutes);
 
-// 🔥 RUTA BASE
+// Ruta base
 app.use('/api/v1', apiRouter);
 
 // ========================================
@@ -262,7 +244,6 @@ const startServer = async () => {
   }
 };
 
-// Manejo de errores globales
 process.on('unhandledRejection', (reason) => {
   logger.error('Unhandled Rejection', { reason });
   process.exit(1);
