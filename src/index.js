@@ -106,6 +106,7 @@ app.get('/', (req, res) => {
 
 // Autenticación
 const authRoutes = require('./Auth/routes/auth.routes');
+const userRoutes = require('./Auth/routes/user.routes');
 
 // Territorial
 const zonaRoutes = require('./Territorial/routes/zona.routes');
@@ -169,6 +170,7 @@ const reportesRoutes = require('./Reportes/routes/reportes.routes');
 const apiRouter = express.Router();
 
 apiRouter.use('/auth', authRoutes);
+apiRouter.use('/users', userRoutes);
 apiRouter.use('/zonas', zonaRoutes);
 apiRouter.use('/nucleos', nucleoRoutes);
 apiRouter.use('/fincas', fincaRoutes);
