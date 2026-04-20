@@ -10,7 +10,7 @@ const logger = require('../../utils/logger');
  */
 const register = asyncHandler(async (req, res) => {
   const { email, password, nombre, roles } = req.body;
-
+ 
   // Verificar si el usuario ya existe
   const userExists = await User.findOne({ email });
   if (userExists) {
