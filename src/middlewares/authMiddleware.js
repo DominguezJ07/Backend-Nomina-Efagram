@@ -1,10 +1,11 @@
 const { verifyToken } = require('../utils/jwtUtils');
+const { userHasPermission } = require('../config/permissions');
 const logger = require('../utils/logger');
-const { MENSAJES_ERROR } = require('../config/constants');
+const { MENSAJES_ERROR, ROLES } = require('../config/constants');
 
 /**
  * Middleware de autenticación
- * Verifica que el token JWT sea válido
+ * Verifica que el token JWT sea válido y extrae la información del usuario
  */
 const authenticate = async (req, res, next) => {
   try {
@@ -28,9 +29,12 @@ const authenticate = async (req, res, next) => {
     req.user = {
       id: decoded.id,
       email: decoded.email,
-      roles: decoded.roles || [],
+      roles: Array.isArray(decoded.roles) ? decoded.roles : [decoded.roles],
       nombre: decoded.nombre
     };
+
+    // Registrar acceso
+    logger.info(`Usuario autenticado: ${req.user.email} - Roles: ${req.user.roles.join(', ')}`);
 
     next();
   } catch (error) {
@@ -38,7 +42,7 @@ const authenticate = async (req, res, next) => {
     
     return res.status(401).json({
       success: false,
-      message: error.message || MENSAJES_ERROR.TOKEN_INVALIDO
+      message: error.message || 'Token inválido o expirado'
     });
   }
 };
@@ -46,7 +50,8 @@ const authenticate = async (req, res, next) => {
 /**
  * Middleware de autorización por roles
  * Verifica que el usuario tenga al menos uno de los roles requeridos
- * @param {Array<String>} rolesPermitidos - Array de roles permitidos
+ * @param {...String} rolesPermitidos - Roles permitidos (argumentos individuales)
+ * @returns {Function} Middleware
  */
 const authorize = (...rolesPermitidos) => {
   return (req, res, next) => {
@@ -55,7 +60,7 @@ const authorize = (...rolesPermitidos) => {
       if (!req.user) {
         return res.status(401).json({
           success: false,
-          message: MENSAJES_ERROR.NO_AUTORIZADO
+          message: 'Usuario no autenticado'
         });
       }
 
@@ -64,7 +69,7 @@ const authorize = (...rolesPermitidos) => {
         logger.warn(`Usuario ${req.user.id} sin roles asignados`);
         return res.status(403).json({
           success: false,
-          message: MENSAJES_ERROR.NO_AUTORIZADO
+          message: 'Usuario sin roles asignados'
         });
       }
 
@@ -74,10 +79,10 @@ const authorize = (...rolesPermitidos) => {
       );
 
       if (!tienePermiso) {
-        logger.warn(`Acceso denegado para usuario ${req.user.id} con roles: ${req.user.roles.join(', ')}`);
+        logger.warn(`Acceso denegado para usuario ${req.user.email} - Roles: ${req.user.roles.join(', ')} - Requeridos: ${rolesPermitidos.join(', ')}`);
         return res.status(403).json({
           success: false,
-          message: MENSAJES_ERROR.NO_AUTORIZADO,
+          message: 'No tienes permisos para acceder a este recurso',
           rolesRequeridos: rolesPermitidos,
           rolesActuales: req.user.roles
         });
@@ -95,8 +100,45 @@ const authorize = (...rolesPermitidos) => {
 };
 
 /**
+ * Middleware de verificación de permisos específicos
+ * Utiliza el sistema centralizado de permisos
+ * @param {String} accion - La acción a verificar (ej: 'users:create')
+ * @returns {Function} Middleware
+ */
+const checkPermission = (accion) => {
+  return (req, res, next) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({
+          success: false,
+          message: 'Usuario no autenticado'
+        });
+      }
+
+      if (!userHasPermission(req.user.roles, accion)) {
+        logger.warn(`Permiso denegado: ${req.user.email} - Acción: ${accion}`);
+        return res.status(403).json({
+          success: false,
+          message: `No tienes permisos para realizar esta acción: ${accion}`,
+          accion
+        });
+      }
+
+      next();
+    } catch (error) {
+      logger.error('Error verificando permisos', { error: error.message });
+      return res.status(500).json({
+        success: false,
+        message: 'Error en verificación de permisos'
+      });
+    }
+  };
+};
+
+/**
  * Middleware opcional de autenticación
  * Intenta autenticar pero no falla si no hay token
+ * Útil para rutas que pueden ser públicas u autenticadas
  */
 const optionalAuth = async (req, res, next) => {
   try {
@@ -161,6 +203,7 @@ const isSelfOrAdmin = (paramName = 'id') => {
 module.exports = {
   authenticate,
   authorize,
+  checkPermission,
   optionalAuth,
   isSelfOrAdmin
 };

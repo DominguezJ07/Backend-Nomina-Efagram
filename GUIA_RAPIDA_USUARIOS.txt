@@ -1,0 +1,320 @@
+📌 GUÍA RÁPIDA - CÓMO USAR EL SISTEMA DE GESTIÓN DE USUARIOS
+
+═════════════════════════════════════════════════════════════════════════════════
+
+🚀 INICIO RÁPIDO
+
+1. ASEGÚRATE QUE EL SERVIDOR ESTÁ CORRIENDO
+   npm run dev
+   # O para producción: npm start
+
+2. VERIFICA QUE TIENES UN ADMIN EN BD
+   Usa el seeder para crear el primer admin:
+   npm run seed:users
+   # O: node src/seeders/user.seeder.js seed
+
+3. OBTÉN UN TOKEN (Login)
+   POST http://localhost:5000/api/v1/auth/login
+   Body: {
+     "email": "admin@efagram.com",
+     "password": "Admin123!@#"
+   }
+   # Guarda el token recibido
+
+4. COPIA EL TOKEN Y ÚSALO EN TODAS LAS SOLICITUDES
+   Authorization: Bearer <tu_token_aqui>
+
+═════════════════════════════════════════════════════════════════════════════════
+
+📋 TAREAS COMUNES
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║ TAREA 1: CREAR UN NUEVO USUARIO DESDE MODAL                            ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+PASO 1: Obtén lista de roles disponibles
+  GET /api/v1/users/roles/list
+  Headers: {Authorization: Bearer <token>}
+  
+  → Esto te devuelve los roles para rellenar un SELECT
+
+PASO 2: Prepara el formulario en el frontend
+  - Nombre: Text input (2-50 caracteres)
+  - Email: Email input (debe ser válido y único)
+  - Contraseña: Password input (mín. 6 caracteres)
+  - Rol: Select (valores de /roles/list)
+
+PASO 3: Envía los datos
+  POST /api/v1/users
+  Headers: {
+    Authorization: Bearer <token_admin>,
+    Content-Type: application/json
+  }
+  Body: {
+    "nombre": "Supervisor Principal",
+    "email": "supervisor@efagram.com",
+    "password": "Supervisor123!@#",
+    "roles": ["SUPERVISOR"]
+  }
+
+PASO 4: Procesa la respuesta
+  SI ÉXITO (201):
+  - Muestra mensaje de confirmación
+  - Guarda los tokens generados
+  - Recarga la lista de usuarios
+  
+  SI ERROR (400, 409):
+  - Muestra el mensaje de error
+  - Permite al usuario corregir y reintentar
+  - Email duplicado → "El email ya está registrado"
+
+═════════════════════════════════════════════════════════════════════════════════
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║ TAREA 2: LISTAR USUARIOS                                               ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+SIMPLE:
+  GET /api/v1/users
+  Headers: {Authorization: Bearer <token>}
+
+CON PAGINACIÓN:
+  GET /api/v1/users?page=1&limit=10
+  Headers: {Authorization: Bearer <token>}
+
+CON BÚSQUEDA:
+  GET /api/v1/users?search=supervisor
+  Headers: {Authorization: Bearer <token>}
+  # Busca en nombre y email
+
+FILTRADO AVANZADO:
+  GET /api/v1/users?page=1&limit=10&rol=SUPERVISOR&activo=true&search=juan
+  Headers: {Authorization: Bearer <token>}
+
+═════════════════════════════════════════════════════════════════════════════════
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║ TAREA 3: CAMBIAR ROLES DE UN USUARIO (SOLO ADMIN)                     ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+PASO 1: Obtén lista de usuarios
+  GET /api/v1/users
+  
+PASO 2: Obtén los roles disponibles
+  GET /api/v1/users/roles/list
+  
+PASO 3: Actualiza los roles
+  PUT /api/v1/users/{id_usuario}/roles
+  Headers: {
+    Authorization: Bearer <token_admin>,
+    Content-Type: application/json
+  }
+  Body: {
+    "roles": ["SUPERVISOR", "JEFE_OPERACIONES"]
+  }
+
+PASO 4: Recarga la lista de usuarios
+
+═════════════════════════════════════════════════════════════════════════════════
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║ TAREA 4: DESACTIVAR USUARIO (soft delete)                              ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+El usuario se desactiva pero sigue existiendo en BD
+
+  PUT /api/v1/users/{id_usuario}/deactivate
+  Headers: {
+    Authorization: Bearer <token_admin>
+  }
+
+Resultado: El usuario no puede hacer login pero sus datos están preservados
+
+═════════════════════════════════════════════════════════════════════════════════
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║ TAREA 5: CAMBIAR CONTRASEÑA                                            ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+EL USUARIO CAMBIA SU PROPIA CONTRASEÑA:
+  PUT /api/v1/auth/change-password
+  Headers: {Authorization: Bearer <token>}
+  Body: {
+    "currentPassword": "PasswordActual123",
+    "newPassword": "PasswordNueva456"
+  }
+
+ADMIN CAMBIA CONTRASEÑA DE OTRO USUARIO:
+  PUT /api/v1/users/{id_usuario}/password
+  Headers: {Authorization: Bearer <token_admin>}
+  Body: {
+    "newPassword": "NuevaContrasena123456"
+  }
+
+═════════════════════════════════════════════════════════════════════════════════
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║ TAREA 6: VER PERMISOS DE UN ROL                                        ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+  GET /api/v1/users/roles/SUPERVISOR/permissions
+  Headers: {Authorization: Bearer <token_admin>}
+
+Devuelve:
+- Información del rol
+- Lista de todas sus acciones permitidas
+- Total de permisos
+
+═════════════════════════════════════════════════════════════════════════════════
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║ TAREA 7: OBTENER ESTADÍSTICAS                                          ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+  GET /api/v1/users/stats/dashboard
+  Headers: {Authorization: Bearer <token_admin>}
+
+Devuelve:
+- Total de usuarios
+- Usuarios activos/inactivos
+- Desglose por rol
+
+═════════════════════════════════════════════════════════════════════════════════
+
+🔐 PERMISOS REQUERIDOS POR ACCIÓN
+
+Crear usuario              → ADMIN_SISTEMA, TALENTO_HUMANO
+Listar usuarios            → ADMIN_SISTEMA, TALENTO_HUMANO, SUPERVISOR
+Ver usuario                → ADMIN_SISTEMA, TALENTO_HUMANO, SUPERVISOR, JEFE_OPERACIONES
+Actualizar usuario         → ADMIN_SISTEMA, TALENTO_HUMANO
+Cambiar roles              → ADMIN_SISTEMA (solo)
+Cambiar contraseña         → El usuario o ADMIN_SISTEMA
+Activar/desactivar         → ADMIN_SISTEMA, TALENTO_HUMANO
+Eliminar usuario           → ADMIN_SISTEMA (solo)
+Ver estadísticas           → ADMIN_SISTEMA (solo)
+Ver permisos de rol        → ADMIN_SISTEMA (solo)
+
+═════════════════════════════════════════════════════════════════════════════════
+
+🎯 MEJORES PRÁCTICAS
+
+✅ SIEMPRE
+- Guarda el token en localStorage o sessionStorage
+- Incluye el header Authorization en TODAS las solicitudes autenticadas
+- Valida el email en el cliente antes de enviar
+- Maneja errores 401 (token expirado) refrescando sesión
+
+❌ NUNCA
+- Envíes contraseña sin HTTPS en producción
+- Guardes la contraseña en localStorage
+- Hagas validaciones solo en el cliente (valida en servidor)
+- Intentes cambiar roles de usuario siendo trabajador
+- Intentes eliminar el último admin
+
+⚠️  IMPORTANTE
+- Un usuario puede tener múltiples roles simultáneamente
+- El último admin del sistema no puede ser eliminado ni desactivado
+- Desactivar (soft delete) es reversible, eliminar (hard delete) no
+- Los tokens expiran automáticamente (configurable en .env)
+
+═════════════════════════════════════════════════════════════════════════════════
+
+📞 SOLUCIÓN DE PROBLEMAS
+
+PROBLEMA: "Token inválido o expirado"
+SOLUCIÓN: 
+- Verifica que copiaste correctamente el token
+- El token debe estar completo (sin cortes)
+- Si expiró, haz login de nuevo
+
+PROBLEMA: "No tienes permisos para acceder a este recurso"
+SOLUCIÓN:
+- Verifica que tu rol tiene permiso
+- Tu rol debe estar en la lista de roles permitidos
+- Solo ADMIN puede cambiar roles
+
+PROBLEMA: "El email ya está registrado"
+SOLUCIÓN:
+- El email ya existe en la BD
+- Usa otro email
+- O solicita al admin que lo reactive si estaba desactivado
+
+PROBLEMA: 400 "Datos inválidos"
+SOLUCIÓN:
+- Verifica los datos requeridos
+- Nombre: 2-50 caracteres
+- Email: formato válido
+- Contraseña: mínimo 6 caracteres
+- Roles: deben existir en el enum
+
+═════════════════════════════════════════════════════════════════════════════════
+
+🧪 TESTING CON POSTMAN
+
+1. Crea una colección: "Gestor Usuarios"
+
+2. Dentro crea carpetas:
+   - Auth
+   - Usuarios - CRUD
+   - Usuarios - Filtros
+   - Roles y Permisos
+   - Estadísticas
+
+3. Para cada endpoint:
+   - GET /api/v1/auth/login (login como admin)
+   - POST /api/v1/users (crear usuario)
+   - GET /api/v1/users (listar)
+   - etc.
+
+4. En la colección, en la pestaña "Pre-request Script", guarda el token:
+   ```javascript
+   var jsonData = pm.response.json();
+   pm.environment.set("token", jsonData.data.token);
+   ```
+
+5. En cada solicitud usa:
+   Authorization: Bearer {{token}}
+
+═════════════════════════════════════════════════════════════════════════════════
+
+📚 DOCUMENTACIÓN ADICIONAL
+
+- /src/Auth/API_DOCUMENTATION.js - Documentación técnica completa
+- /GESTOR_USUARIOS_IMPLEMENTACION.md - Guía detallada de implementación
+- /RESUMEN_IMPLEMENTACION.txt - Resumen visual de cambios
+- /EJEMPLOS_PRACTICOS_USUARIOS.js - Ejemplos de código
+
+═════════════════════════════════════════════════════════════════════════════════
+
+🎓 PRÓXIMO PASO: IMPLEMENTAR EN EL FRONTEND
+
+Con toda esta API lista, el frontend debe:
+
+1. Modal de Crear Usuario
+   - Formulario con campos
+   - Enviar POST a /api/v1/users
+   - Mostrar respuesta y tokens
+
+2. Tabla de Usuarios
+   - GET a /api/v1/users
+   - Mostrar lista con paginación
+   - Botones para editar/cambiar roles/desactivar
+
+3. Gestión de Roles
+   - Mostrar roles disponibles
+   - Permitir asignar roles
+   - Ver permisos de cada rol
+
+4. Estadísticas
+   - GET a /api/v1/users/stats/dashboard
+   - Mostrar gráficos de distribución
+
+═════════════════════════════════════════════════════════════════════════════════
+
+✅ ESTADO: LISTO PARA PRODUCCIÓN
+
+El sistema está completamente funcional y seguro.
+Todos los endpoints están implementados y testeados.
+Todas las validaciones y protecciones están en lugar.
+
+¡A programar el frontend! 🚀

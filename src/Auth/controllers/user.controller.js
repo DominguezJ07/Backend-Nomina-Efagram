@@ -1,55 +1,29 @@
-const User = require('../models/user.model');
-const { generateToken } = require('../../utils/jwtUtils');
+const UserService = require('../services/user.service');
 const { asyncHandler, ApiError } = require('../../middlewares/errorHandler');
 const { ROLES } = require('../../config/constants');
 const logger = require('../../utils/logger');
 
 /**
- * @desc    Obtener todos los usuarios
+ * @desc    Obtener todos los usuarios con filtros
  * @route   GET /api/v1/users
- * @access  Private (Admin)
+ * @access  Private (Admin, Talento Humano, Supervisor)
  */
 const getUsers = asyncHandler(async (req, res) => {
-  const { page = 1, limit = 10, search, activo } = req.query;
+  const { page = 1, limit = 10, search, activo, rol } = req.query;
 
-  const query = {};
+  const filtros = {
+    page,
+    limit,
+    search,
+    activo,
+    rol
+  };
 
-  // Filtro por búsqueda (nombre o email)
-  if (search) {
-    query.$or = [
-      { nombre: { $regex: search, $options: 'i' } },
-      { email: { $regex: search, $options: 'i' } }
-    ];
-  }
-
-  // Filtro por estado activo
-  if (activo !== undefined) {
-    query.activo = activo === 'true';
-  }
-
-  const pageNum = parseInt(page);
-  const limitNum = parseInt(limit);
-  const skip = (pageNum - 1) * limitNum;
-
-  const users = await User.find(query)
-    .select('-password')
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(limitNum);
-
-  const total = await User.countDocuments(query);
+  const resultado = await UserService.obtenerTodos(filtros);
 
   res.status(200).json({
     success: true,
-    data: {
-      users,
-      pagination: {
-        page: pageNum,
-        limit: limitNum,
-        total,
-        pages: Math.ceil(total / limitNum)
-      }
-    }
+    data: resultado
   });
 });
 
@@ -61,70 +35,41 @@ const getUsers = asyncHandler(async (req, res) => {
 const getUser = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
-  const user = await User.findById(id).select('-password');
-
-  if (!user) {
-    throw new ApiError(404, 'Usuario no encontrado');
-  }
-
   // Verificar permisos: admin o propio usuario
   if (!req.user.roles.includes(ROLES.ADMIN_SISTEMA) && req.user.id !== id) {
     throw new ApiError(403, 'No tienes permisos para ver este usuario');
   }
 
+  const usuario = await UserService.obtenerPorId(id);
+
   res.status(200).json({
     success: true,
-    data: user
+    data: usuario
   });
 });
 
 /**
  * @desc    Crear nuevo usuario
  * @route   POST /api/v1/users
- * @access  Private (Admin)
+ * @access  Private (Admin, Talento Humano)
  */
 const createUser = asyncHandler(async (req, res) => {
   const { nombre, email, password, roles, avatar } = req.body;
 
-  // Verificar si el usuario ya existe
-  const userExists = await User.findOne({ email });
-  if (userExists) {
-    throw new ApiError(400, 'El usuario ya existe');
+  // Validar datos requeridos
+  if (!nombre || !email || !password) {
+    throw new ApiError(400, 'Nombre, email y contraseña son requeridos');
   }
 
-  // Crear usuario
-  const user = await User.create({
-    nombre,
-    email,
-    password,
-    roles: roles || [ROLES.TRABAJADOR],
-    avatar
-  });
-
-  // Generar token
-  const token = generateToken({
-    id: user._id,
-    email: user.email,
-    roles: user.roles,
-    nombre: user.nombre
-  });
-
-  logger.info(`Usuario creado: ${user.email} por ${req.user.email}`);
+  const resultado = await UserService.crear(
+    { nombre, email, password, roles, avatar },
+    req.user.id
+  );
 
   res.status(201).json({
     success: true,
     message: 'Usuario creado exitosamente',
-    data: {
-      user: {
-        _id: user._id,
-        nombre: user.nombre,
-        email: user.email,
-        roles: user.roles,
-        activo: user.activo,
-        avatar: user.avatar
-      },
-      token
-    }
+    data: resultado
   });
 });
 
@@ -135,13 +80,7 @@ const createUser = asyncHandler(async (req, res) => {
  */
 const updateUser = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { nombre, email, roles, avatar, activo } = req.body;
-
-  const user = await User.findById(id);
-
-  if (!user) {
-    throw new ApiError(404, 'Usuario no encontrado');
-  }
+  const datosActualizacion = req.body;
 
   // Verificar permisos: admin o propio usuario
   if (!req.user.roles.includes(ROLES.ADMIN_SISTEMA) && req.user.id !== id) {
@@ -150,68 +89,20 @@ const updateUser = asyncHandler(async (req, res) => {
 
   // Si no es admin, no puede cambiar roles ni estado activo
   if (!req.user.roles.includes(ROLES.ADMIN_SISTEMA)) {
-    delete req.body.roles;
-    delete req.body.activo;
+    delete datosActualizacion.roles;
+    delete datosActualizacion.activo;
   }
 
-  // Verificar email único si se cambia
-  if (email && email !== user.email) {
-    const emailExists = await User.findOne({ email });
-    if (emailExists) {
-      throw new ApiError(400, 'El email ya está en uso');
-    }
-  }
-
-  // Actualizar usuario
-  Object.assign(user, req.body);
-  await user.save();
-
-  logger.info(`Usuario actualizado: ${user.email} por ${req.user.email}`);
+  const usuarioActualizado = await UserService.actualizar(
+    id,
+    datosActualizacion,
+    req.user.id
+  );
 
   res.status(200).json({
     success: true,
     message: 'Usuario actualizado exitosamente',
-    data: {
-      user: {
-        _id: user._id,
-        nombre: user.nombre,
-        email: user.email,
-        roles: user.roles,
-        activo: user.activo,
-        avatar: user.avatar
-      }
-    }
-  });
-});
-
-/**
- * @desc    Eliminar usuario (soft delete)
- * @route   DELETE /api/v1/users/:id
- * @access  Private (Admin)
- */
-const deleteUser = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-
-  const user = await User.findById(id);
-
-  if (!user) {
-    throw new ApiError(404, 'Usuario no encontrado');
-  }
-
-  // No permitir eliminar admin sistema
-  if (user.roles.includes(ROLES.ADMIN_SISTEMA)) {
-    throw new ApiError(400, 'No se puede eliminar un usuario administrador del sistema');
-  }
-
-  // Soft delete
-  user.activo = false;
-  await user.save();
-
-  logger.info(`Usuario eliminado (soft): ${user.email} por ${req.user.email}`);
-
-  res.status(200).json({
-    success: true,
-    message: 'Usuario eliminado exitosamente'
+    data: usuarioActualizado
   });
 });
 
@@ -224,10 +115,8 @@ const changeUserPassword = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { newPassword } = req.body;
 
-  const user = await User.findById(id);
-
-  if (!user) {
-    throw new ApiError(404, 'Usuario no encontrado');
+  if (!newPassword) {
+    throw new ApiError(400, 'La nueva contraseña es requerida');
   }
 
   // Verificar permisos: admin o propio usuario
@@ -235,14 +124,147 @@ const changeUserPassword = asyncHandler(async (req, res) => {
     throw new ApiError(403, 'No tienes permisos para cambiar la contraseña de este usuario');
   }
 
-  user.password = newPassword;
-  await user.save();
-
-  logger.info(`Contraseña cambiada para usuario: ${user.email} por ${req.user.email}`);
+  await UserService.cambiarPassword(id, newPassword, req.user.id);
 
   res.status(200).json({
     success: true,
     message: 'Contraseña actualizada exitosamente'
+  });
+});
+
+/**
+ * @desc    Cambiar roles de usuario
+ * @route   PUT /api/v1/users/:id/roles
+ * @access  Private (Admin)
+ */
+const changeUserRoles = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { roles } = req.body;
+
+  if (!roles || !Array.isArray(roles) || roles.length === 0) {
+    throw new ApiError(400, 'Roles válidos son requeridos');
+  }
+
+  const usuarioActualizado = await UserService.cambiarRoles(
+    id,
+    roles,
+    req.user.id
+  );
+
+  res.status(200).json({
+    success: true,
+    message: 'Roles del usuario actualizados exitosamente',
+    data: usuarioActualizado
+  });
+});
+
+/**
+ * @desc    Desactivar usuario
+ * @route   PUT /api/v1/users/:id/deactivate
+ * @access  Private (Admin, Talento Humano)
+ */
+const deactivateUser = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  await UserService.desactivar(id, req.user.id);
+
+  res.status(200).json({
+    success: true,
+    message: 'Usuario desactivado exitosamente'
+  });
+});
+
+/**
+ * @desc    Activar usuario
+ * @route   PUT /api/v1/users/:id/activate
+ * @access  Private (Admin, Talento Humano)
+ */
+const activateUser = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  await UserService.activar(id, req.user.id);
+
+  res.status(200).json({
+    success: true,
+    message: 'Usuario activado exitosamente'
+  });
+});
+
+/**
+ * @desc    Eliminar usuario (hard delete)
+ * @route   DELETE /api/v1/users/:id
+ * @access  Private (Admin)
+ */
+const deleteUser = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  await UserService.eliminar(id, req.user.id);
+
+  res.status(200).json({
+    success: true,
+    message: 'Usuario eliminado exitosamente'
+  });
+});
+
+/**
+ * @desc    Obtener estadísticas de usuarios
+ * @route   GET /api/v1/users/stats/dashboard
+ * @access  Private (Admin)
+ */
+const getUserStats = asyncHandler(async (req, res) => {
+  const estadisticas = await UserService.obtenerEstadisticas();
+
+  res.status(200).json({
+    success: true,
+    data: estadisticas
+  });
+});
+
+/**
+ * @desc    Obtener lista de roles disponibles con sus descripciones
+ * @route   GET /api/v1/users/roles/list
+ * @access  Private (cualquier usuario autenticado)
+ */
+const getRolesList = asyncHandler(async (req, res) => {
+  const { ROLE_DESCRIPTIONS } = require('../../config/permissions');
+
+  const rolesDisponibles = Object.entries(ROLE_DESCRIPTIONS).map(([key, info]) => ({
+    id: key,
+    ...info
+  }));
+
+  res.status(200).json({
+    success: true,
+    data: {
+      roles: rolesDisponibles
+    }
+  });
+});
+
+/**
+ * @desc    Obtener permisos de un rol específico
+ * @route   GET /api/v1/users/roles/:rol/permissions
+ * @access  Private (Admin)
+ */
+const getRolePermissions = asyncHandler(async (req, res) => {
+  const { rol } = req.params;
+  const { getPermissionsByRole, ROLE_DESCRIPTIONS } = require('../../config/permissions');
+
+  if (!Object.values(ROLES).includes(rol)) {
+    throw new ApiError(400, `Rol inválido: ${rol}`);
+  }
+
+  const permisos = getPermissionsByRole(rol);
+  const info = ROLE_DESCRIPTIONS[rol];
+
+  res.status(200).json({
+    success: true,
+    data: {
+      rol,
+      info,
+      permisos,
+      totalPermisos: permisos.length
+    }
   });
 });
 
@@ -251,6 +273,12 @@ module.exports = {
   getUser,
   createUser,
   updateUser,
+  changeUserPassword,
+  changeUserRoles,
+  deactivateUser,
+  activateUser,
   deleteUser,
-  changeUserPassword
+  getUserStats,
+  getRolesList,
+  getRolePermissions
 };

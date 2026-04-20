@@ -1,7 +1,7 @@
 const express = require('express');
 const { body, param } = require('express-validator');
 const { validateRequest } = require('../../middlewares/validateRequest');
-const { authenticate, authorize } = require('../../middlewares/authMiddleware');
+const { authenticate, authorize, checkPermission } = require('../../middlewares/authMiddleware');
 const { ROLES } = require('../../config/constants');
 const {
   getUsers,
@@ -9,7 +9,13 @@ const {
   createUser,
   updateUser,
   deleteUser,
-  changeUserPassword
+  changeUserPassword,
+  changeUserRoles,
+  deactivateUser,
+  activateUser,
+  getUserStats,
+  getRolesList,
+  getRolePermissions
 } = require('../controllers/user.controller');
 
 const router = express.Router();
@@ -18,13 +24,51 @@ const router = express.Router();
 router.use(authenticate);
 
 /**
- * @route   GET /api/v1/users
- * @desc    Obtener todos los usuarios
+ * @route   GET /api/v1/users/stats/dashboard
+ * @desc    Obtener estadísticas de usuarios
  * @access  Private (Admin)
  */
 router.get(
-  '/',
+  '/stats/dashboard',
   authorize(ROLES.ADMIN_SISTEMA),
+  getUserStats
+);
+
+/**
+ * @route   GET /api/v1/users/roles/list
+ * @desc    Obtener lista de roles disponibles
+ * @access  Private
+ */
+router.get(
+  '/roles/list',
+  getRolesList
+);
+
+/**
+ * @route   GET /api/v1/users/roles/:rol/permissions
+ * @desc    Obtener permisos de un rol específico
+ * @access  Private (Admin)
+ */
+router.get(
+  '/roles/:rol/permissions',
+  authorize(ROLES.ADMIN_SISTEMA),
+  [
+    param('rol')
+      .notEmpty()
+      .withMessage('El rol es obligatorio'),
+    validateRequest
+  ],
+  getRolePermissions
+);
+
+/**
+ * @route   GET /api/v1/users
+ * @desc    Obtener todos los usuarios
+ * @access  Private (Admin, Talento Humano, Supervisor)
+ */
+router.get(
+  '/',
+  authorize(ROLES.ADMIN_SISTEMA, ROLES.TALENTO_HUMANO, ROLES.SUPERVISOR),
   getUsers
 );
 
@@ -47,11 +91,11 @@ router.get(
 /**
  * @route   POST /api/v1/users
  * @desc    Crear nuevo usuario
- * @access  Private (Admin)
+ * @access  Private (Admin, Talento Humano)
  */
 router.post(
   '/',
-  authorize(ROLES.ADMIN_SISTEMA),
+  authorize(ROLES.ADMIN_SISTEMA, ROLES.TALENTO_HUMANO),
   [
     body('nombre')
       .notEmpty()
@@ -122,20 +166,25 @@ router.put(
 );
 
 /**
- * @route   DELETE /api/v1/users/:id
- * @desc    Eliminar usuario
+ * @route   PUT /api/v1/users/:id/roles
+ * @desc    Cambiar roles de usuario
  * @access  Private (Admin)
  */
-router.delete(
-  '/:id',
+router.put(
+  '/:id/roles',
   authorize(ROLES.ADMIN_SISTEMA),
   [
     param('id')
       .isMongoId()
       .withMessage('ID de usuario inválido'),
+    body('roles')
+      .isArray()
+      .withMessage('Los roles deben ser un array')
+      .notEmpty()
+      .withMessage('Debe proporcionar al menos un rol'),
     validateRequest
   ],
-  deleteUser
+  changeUserRoles
 );
 
 /**
@@ -157,6 +206,57 @@ router.put(
     validateRequest
   ],
   changeUserPassword
+);
+
+/**
+ * @route   PUT /api/v1/users/:id/deactivate
+ * @desc    Desactivar usuario
+ * @access  Private (Admin, Talento Humano)
+ */
+router.put(
+  '/:id/deactivate',
+  authorize(ROLES.ADMIN_SISTEMA, ROLES.TALENTO_HUMANO),
+  [
+    param('id')
+      .isMongoId()
+      .withMessage('ID de usuario inválido'),
+    validateRequest
+  ],
+  deactivateUser
+);
+
+/**
+ * @route   PUT /api/v1/users/:id/activate
+ * @desc    Activar usuario
+ * @access  Private (Admin, Talento Humano)
+ */
+router.put(
+  '/:id/activate',
+  authorize(ROLES.ADMIN_SISTEMA, ROLES.TALENTO_HUMANO),
+  [
+    param('id')
+      .isMongoId()
+      .withMessage('ID de usuario inválido'),
+    validateRequest
+  ],
+  activateUser
+);
+
+/**
+ * @route   DELETE /api/v1/users/:id
+ * @desc    Eliminar usuario (hard delete)
+ * @access  Private (Admin)
+ */
+router.delete(
+  '/:id',
+  authorize(ROLES.ADMIN_SISTEMA),
+  [
+    param('id')
+      .isMongoId()
+      .withMessage('ID de usuario inválido'),
+    validateRequest
+  ],
+  deleteUser
 );
 
 module.exports = router;
