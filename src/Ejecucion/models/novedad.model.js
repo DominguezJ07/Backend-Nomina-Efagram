@@ -33,7 +33,7 @@ const novedadSchema = new mongoose.Schema({
   cuadrilla: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Cuadrilla',
-    required: [true, 'La cuadrilla es obligatoria']   // requerida según modelo Ejecucion
+    default: null  // opcional
   },
 
   // ─── FINCA ────────────────────────────────────────────────────────────────
@@ -61,13 +61,13 @@ const novedadSchema = new mongoose.Schema({
   // ─── HORAS NO TRABAJADAS ──────────────────────────────────────────────────
   horas: {
     type: Number,
-    required: [true, 'Las horas son obligatorias'],
+    default: null,  // opcional
     min: [0, 'Las horas no pueden ser negativas'],
     max: [24, 'Las horas no pueden superar 24'],
     validate: {
       validator: function (value) {
-        // Permite coexistir con `dias`, la lógica de negocio decide cuál aplica
-        return value >= 0;
+        if (value === null || value === undefined) return true;
+        return value >= 0 && value <= 24;
       },
       message: 'Valor de horas inválido'
     }
