@@ -85,3 +85,49 @@ exports.obtenerPorMes = async (req, res) => {
     });
   }
 };
+
+
+// ✅ RESUMEN POR SUBPROYECTO
+exports.resumenPorSubproyecto = async (req, res) => {
+  try {
+    const { subproyectoId } = req.params;
+
+    const resumen = await HorasNoTrabajadas.aggregate([
+      {
+        $match: {
+          subproyectoId: new mongoose.Types.ObjectId(subproyectoId),
+        },
+      },
+      {
+        $group: {
+          _id: '$cuadrillaId',
+          totalHoras: { $sum: '$horas' },
+        },
+      },
+      {
+        $lookup: {
+          from: 'cuadrillas',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'cuadrilla',
+        },
+      },
+      {
+        $unwind: { path: '$cuadrilla', preserveNullAndEmpty: true },
+      },
+      {
+        $project: {
+          _id: 0,
+          cuadrillaId: '$_id',
+          nombre: { $ifNull: ['$cuadrilla.nombre', 'Sin nombre'] },
+          totalHoras: 1,
+        },
+      },
+    ]);
+
+    res.json({ success: true, data: resumen });
+  } catch (error) {
+    console.error('Error en resumenPorSubproyecto:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};

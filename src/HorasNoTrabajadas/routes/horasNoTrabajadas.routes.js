@@ -8,4 +8,7 @@ router.post('/', controller.crear);
 // Obtener horas por mes
 router.get('/mensual', controller.obtenerPorMes);
 
+// Resumen de horas no trabajadas por subproyecto
+router.get('/resumen/:subproyectoId', controller.resumenPorSubproyecto);
+
 module.exports = router;
