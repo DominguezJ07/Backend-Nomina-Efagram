@@ -32,7 +32,6 @@ const rolSchema = new mongoose.Schema({
 });
 
 // Índices
-rolSchema.index({ codigo: 1 });
 
 const Rol = mongoose.model('Rol', rolSchema);
 

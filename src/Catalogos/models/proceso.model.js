@@ -35,7 +35,6 @@ const procesoSchema = new mongoose.Schema(
 );
 
 // Índices
-procesoSchema.index({ codigo: 1 }, { unique: true });
 procesoSchema.index({ activo: 1 });
 procesoSchema.index({ nombre: 'text' });
 

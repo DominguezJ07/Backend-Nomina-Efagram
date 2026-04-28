@@ -26,7 +26,6 @@ const cargoSchema = new mongoose.Schema(
   }
 );
 
-cargoSchema.index({ codigo: 1 }, { unique: true });
 cargoSchema.index({ activo: 1 });
 cargoSchema.index({ nombre: 'text' });
 

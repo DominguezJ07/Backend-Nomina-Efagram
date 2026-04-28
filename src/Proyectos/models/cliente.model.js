@@ -70,8 +70,6 @@ const clienteSchema = new mongoose.Schema({
 });
 
 // Índices
-clienteSchema.index({ codigo: 1 });
-clienteSchema.index({ nit: 1 });
 clienteSchema.index({ activo: 1 });
 
 // Virtual para proyectos del cliente

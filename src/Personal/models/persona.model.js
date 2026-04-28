@@ -134,7 +134,6 @@ const personaSchema = new mongoose.Schema({
 });
 
 // Índices
-personaSchema.index({ num_doc: 1 });
 personaSchema.index({ usuario: 1 });
 personaSchema.index({ estado: 1 });
 personaSchema.index({ finca: 1 });

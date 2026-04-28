@@ -66,7 +66,6 @@ const subproyectoSchema = new mongoose.Schema(
 // Índices
 subproyectoSchema.index({ proyecto: 1 });
 subproyectoSchema.index({ proyecto: 1, estado: 1 });
-subproyectoSchema.index({ codigo: 1 }, { unique: true });
 
 // (Opcional recomendado) índice para consultas por cuadrilla
 subproyectoSchema.index({ cuadrillas: 1 });

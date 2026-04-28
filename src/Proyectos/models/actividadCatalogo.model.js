@@ -70,7 +70,6 @@ const actividadCatalogoSchema = new mongoose.Schema(
   }
 );
 
-actividadCatalogoSchema.index({ codigo: 1 }, { unique: true });
 actividadCatalogoSchema.index({ activa: 1, intervencion: 1 });
 actividadCatalogoSchema.index({ nombre: 'text', codigo: 'text' });
 

@@ -63,7 +63,6 @@ cuadrillaSchema.pre('validate', function () {
 });
 
 // Índices
-cuadrillaSchema.index({ codigo: 1 });
 cuadrillaSchema.index({ supervisor: 1 });
 cuadrillaSchema.index({ nucleo: 1 });
 

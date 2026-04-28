@@ -39,7 +39,6 @@ const intervencionSchema = new mongoose.Schema(
 );
 
 // Índices
-intervencionSchema.index({ codigo: 1 }, { unique: true });
 intervencionSchema.index({ proceso: 1, activo: 1 });
 intervencionSchema.index({ nombre: 'text' });
 

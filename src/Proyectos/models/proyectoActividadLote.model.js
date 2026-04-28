@@ -81,7 +81,6 @@ proyectoActividadLoteSchema.index({ proyecto: 1 });
 proyectoActividadLoteSchema.index({ lote: 1 });
 proyectoActividadLoteSchema.index({ actividad: 1 });
 proyectoActividadLoteSchema.index({ estado: 1 });
-proyectoActividadLoteSchema.index({ codigo: 1 });
 
 // TRIGGER: La meta mínima solo puede AUMENTAR, nunca disminuir
 proyectoActividadLoteSchema.pre('save', function() {

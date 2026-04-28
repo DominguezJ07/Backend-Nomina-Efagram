@@ -32,8 +32,6 @@ const zonaSchema = new mongoose.Schema({
 });
 
 // Índices
-zonaSchema.index({ codigo: 1 });
-zonaSchema.index({ nombre: 1 });
 
 // Método para obtener zona por código
 zonaSchema.statics.findByCodigo = function(codigo) {

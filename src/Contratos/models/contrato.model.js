@@ -137,7 +137,6 @@ contratoSchema.pre('save', function () {
   }
 });
 
-contratoSchema.index({ codigo: 1 }, { unique: true });
 contratoSchema.index({ subproyecto: 1 });
 contratoSchema.index({ finca: 1 });
 contratoSchema.index({ cuadrillas: 1 });
