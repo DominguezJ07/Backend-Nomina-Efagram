@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const { ESTADOS_PROYECTO, TIPOS_CONTRATO } = require('../../config/constants');
 
-// ✅ Subdocumento: Actividad por intervención
+// Subdocumento: Actividad por intervención (sin cambios)
 const actividadSchema = new mongoose.Schema(
   {
     nombre: { type: String, required: true, trim: true },
@@ -13,19 +13,40 @@ const actividadSchema = new mongoose.Schema(
   { _id: false }
 );
 
+// ✅ NUEVO: Subdocumento zona embebida (viene de API externa)
+const zonaEmbebidaSchema = new mongoose.Schema(
+  {
+    _id: false,
+    id: { type: String, required: true, trim: true },
+    nombre: { type: String, required: true, trim: true }
+  }
+);
+
+// ✅ NUEVO: Subdocumento persona embebida (viene de API externa)
+const personaEmbebidaSchema = new mongoose.Schema(
+  {
+    _id: false,
+    cc: { type: String, required: true, trim: true },
+    name: { type: String, required: true, trim: true },
+    cargo: { type: String, trim: true, default: null },
+    nombrefinca: { type: String, trim: true, default: null },
+    proceso: { type: String, trim: true, default: null }
+  }
+);
+
 const proyectoSchema = new mongoose.Schema(
   {
     codigo: { type: String, required: true, unique: true, uppercase: true, trim: true },
     nombre: { type: String, required: true, trim: true },
     descripcion: { type: String, trim: true },
 
+    // Sin cambios — Cliente es modelo interno
     cliente: { type: mongoose.Schema.Types.ObjectId, ref: 'Cliente', required: true },
 
-    // ✅ NUEVO: Zona territorial del proyecto
+    // ✅ CAMBIADO: era ObjectId ref:'Zona' → ahora objeto embebido desde API externa
     zona: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Zona',
-      default: null,
+      type: zonaEmbebidaSchema,
+      default: null
     },
 
     fecha_inicio: { type: Date, required: true },
@@ -67,7 +88,12 @@ const proyectoSchema = new mongoose.Schema(
       default: ESTADOS_PROYECTO.PLANEADO,
     },
 
-    responsable: { type: mongoose.Schema.Types.ObjectId, ref: 'Persona' },
+    // ✅ CAMBIADO: era ObjectId ref:'Persona' → ahora objeto embebido desde API externa
+    responsable: {
+      type: personaEmbebidaSchema,
+      default: null
+    },
+
     observaciones: { type: String, trim: true },
   },
   { timestamps: true, versionKey: false }
