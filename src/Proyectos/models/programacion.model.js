@@ -1,18 +1,3 @@
-// ==========================================
-// MODELO: PROGRAMACIÓN — VERSIÓN CORREGIDA
-// ==========================================
-// BUGS CORREGIDOS:
-//
-// BUG #1 — "next is not a function":
-//   Los pre-save hooks async NO deben recibir `next` como parámetro
-//   ni llamar `next()` en Mongoose v6+. En Mongoose moderno los hooks
-//   async se resuelven con return (éxito) o throw (error).
-//   FIX: convertir los dos hooks a async sin `next`, usar throw para errores.
-//
-// BUG #2 — fecha_final = fecha_inicial + 7 días (debería ser +6):
-//   Una semana de 7 días va del día 0 al día 6 (= +6 días, no +7).
-//   Con +7 la semana tiene 8 días.
-//   FIX: setDate(getDate() + 6).
 
 const mongoose = require('mongoose');
 
@@ -20,6 +5,7 @@ const programacionSchema = new mongoose.Schema(
   {
     contrato: {
       type: mongoose.Schema.Types.ObjectId,
+
       ref: 'Contrato',
       required: [true, 'El contrato es obligatorio'],
     },
@@ -117,7 +103,7 @@ const programacionSchema = new mongoose.Schema(
 programacionSchema.index({ contrato: 1 });
 programacionSchema.index({ fecha_inicial: 1 });
 programacionSchema.index({ estado: 1 });
-programacionSchema.index({ finca: 1 });
+programacionSchema.index({ finca: 1 }); 
 programacionSchema.index({ actividad: 1 });
 programacionSchema.index({ contrato: 1, fecha_inicial: 1 }, { unique: false });
 

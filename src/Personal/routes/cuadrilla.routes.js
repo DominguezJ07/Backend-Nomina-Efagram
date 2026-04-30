@@ -15,7 +15,9 @@ const {
 
 const router = express.Router();
 
+// ─────────────────────────────────────────────
 // Validaciones para crear
+// ─────────────────────────────────────────────
 const createCuadrillaValidation = [
   body('codigo')
     .optional()
@@ -25,23 +27,47 @@ const createCuadrillaValidation = [
     .notEmpty()
     .withMessage('El nombre es obligatorio')
     .trim(),
+
+  // ✅ CAMBIADO: supervisor ya no es MongoId, es un objeto
   body('supervisor')
     .notEmpty()
     .withMessage('El supervisor es obligatorio')
-    .isMongoId()
-    .withMessage('ID de supervisor inválido'),
+    .isObject()
+    .withMessage('El supervisor debe ser un objeto'),
+  body('supervisor.cc')
+    .notEmpty()
+    .withMessage('La cédula del supervisor es obligatoria')
+    .trim(),
+  body('supervisor.name')
+    .notEmpty()
+    .withMessage('El nombre del supervisor es obligatorio')
+    .trim(),
+
+  // ✅ CAMBIADO: nucleo ya no es MongoId, es un objeto opcional
   body('nucleo')
-    .optional()
-    .isMongoId()
-    .withMessage('ID de núcleo inválido'),
+    .optional({ nullable: true })
+    .isObject()
+    .withMessage('El núcleo debe ser un objeto'),
+  body('nucleo.id')
+    .if(body('nucleo').exists({ checkNull: false }))
+    .notEmpty()
+    .withMessage('El id del núcleo es obligatorio'),
+  body('nucleo.nombre')
+    .if(body('nucleo').exists({ checkNull: false }))
+    .notEmpty()
+    .withMessage('El nombre del núcleo es obligatorio'),
+
   body('miembros')
     .optional()
     .isArray()
     .withMessage('Los miembros deben ser un array'),
+
   validateRequest
 ];
 
+// ─────────────────────────────────────────────
 // Validaciones para actualizar
+// ─────────────────────────────────────────────
 const updateCuadrillaValidation = [
   body('codigo')
     .optional()
@@ -50,14 +76,35 @@ const updateCuadrillaValidation = [
   body('nombre')
     .optional()
     .trim(),
+
+  // ✅ CAMBIADO: supervisor ya no es MongoId, es un objeto opcional
   body('supervisor')
     .optional()
-    .isMongoId()
-    .withMessage('ID de supervisor inválido'),
+    .isObject()
+    .withMessage('El supervisor debe ser un objeto'),
+  body('supervisor.cc')
+    .if(body('supervisor').exists())
+    .notEmpty()
+    .withMessage('La cédula del supervisor es obligatoria'),
+  body('supervisor.name')
+    .if(body('supervisor').exists())
+    .notEmpty()
+    .withMessage('El nombre del supervisor es obligatorio'),
+
+  // ✅ CAMBIADO: nucleo ya no es MongoId, es un objeto opcional (acepta null para desasignar)
   body('nucleo')
-    .optional()
-    .isMongoId()
-    .withMessage('ID de núcleo inválido'),
+    .optional({ nullable: true })
+    .isObject()
+    .withMessage('El núcleo debe ser un objeto'),
+  body('nucleo.id')
+    .if(body('nucleo').exists({ checkNull: false }))
+    .notEmpty()
+    .withMessage('El id del núcleo es obligatorio'),
+  body('nucleo.nombre')
+    .if(body('nucleo').exists({ checkNull: false }))
+    .notEmpty()
+    .withMessage('El nombre del núcleo es obligatorio'),
+
   body('activa')
     .optional()
     .isBoolean()
@@ -65,16 +112,29 @@ const updateCuadrillaValidation = [
   body('observaciones')
     .optional()
     .trim(),
+
   validateRequest
 ];
 
-// Validación para agregar miembros
+// ─────────────────────────────────────────────
+// Validaciones para agregar miembro
+// ─────────────────────────────────────────────
 const agregarMiembrosValidation = [
-  body('personaId') 
+  // ✅ CAMBIADO: antes era { personaId: MongoId }, ahora es { persona: objeto }
+  body('persona')
     .notEmpty()
-    .withMessage('El ID de la persona es obligatorio')
-    .isMongoId()
-    .withMessage('El ID de la persona no es válido'),
+    .withMessage('Los datos de la persona son obligatorios')
+    .isObject()
+    .withMessage('La persona debe ser un objeto'),
+  body('persona.cc')
+    .notEmpty()
+    .withMessage('La cédula de la persona es obligatoria')
+    .trim(),
+  body('persona.name')
+    .notEmpty()
+    .withMessage('El nombre de la persona es obligatorio')
+    .trim(),
+
   validateRequest
 ];
 
@@ -116,11 +176,12 @@ router.post(
   agregarMiembros
 );
 
+// ✅ CAMBIADO: param era :personaId (MongoId), ahora es :cc (cédula string)
+//    También se removió validateMongoId('personaId') porque CC no es un ObjectId
 router.delete(
-  '/:id/miembros/:personaId',
+  '/:id/miembros/:cc',
   authorize(ROLES.ADMIN_SISTEMA, ROLES.JEFE_OPERACIONES, ROLES.SUPERVISOR),
   validateMongoId('id'),
-  validateMongoId('personaId'),
   removerMiembro
 );
 

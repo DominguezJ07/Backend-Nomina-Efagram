@@ -1,10 +1,11 @@
 const Cuadrilla = require('../models/cuadrilla.model');
-const Persona = require('../models/persona.model');
+// ✅ REMOVIDO: ya no se importa Persona porque no hay lookups a BD de personas
 const { ApiError } = require('../../middlewares/errorHandler');
 
 class CuadrillaService {
   /**
    * Validar que una cuadrilla exista
+   * (sin cambios — sigue buscando por ObjectId de cuadrilla en BD propia)
    */
   async validateCuadrillaExists(cuadrillaId) {
     const cuadrilla = await Cuadrilla.findById(cuadrillaId);
@@ -15,59 +16,77 @@ class CuadrillaService {
   }
 
   /**
-   * Validar que el supervisor sea una persona válida
+   * ✅ CAMBIADO: antes buscaba el supervisor por ObjectId en BD de Persona.
+   *    Ahora solo valida que el objeto tenga los campos mínimos requeridos,
+   *    ya que el supervisor viene de una API externa y no se almacena en BD local.
    */
-  async validateSupervisor(personaId) {
-    const persona = await Persona.findById(personaId);
-    if (!persona) {
-      throw new ApiError(404, 'Supervisor no encontrado');
+  validateSupervisor(supervisorObj) {
+    if (!supervisorObj || typeof supervisorObj !== 'object') {
+      throw new ApiError(400, 'El supervisor debe ser un objeto');
     }
-    if (persona.estado !== 'ACTIVO') {
-      throw new ApiError(400, 'El supervisor no está activo');
+    if (!supervisorObj.cc || String(supervisorObj.cc).trim() === '') {
+      throw new ApiError(400, 'La cédula del supervisor es obligatoria');
     }
-    return persona;
+    if (!supervisorObj.name || String(supervisorObj.name).trim() === '') {
+      throw new ApiError(400, 'El nombre del supervisor es obligatorio');
+    }
+    return supervisorObj;
   }
 
   /**
-   * Validar que una persona exista y esté activa
+   * ✅ CAMBIADO: antes buscaba la persona por ObjectId en BD de Persona.
+   *    Ahora solo valida que el objeto tenga los campos mínimos requeridos,
+   *    ya que las personas vienen de una API externa y no se almacenan en BD local.
    */
-  async validatePersona(personaId) {
-    const persona = await Persona.findById(personaId);
-    if (!persona) {
-      throw new ApiError(404, `Persona ${personaId} no encontrada`);
+  validatePersona(personaObj) {
+    if (!personaObj || typeof personaObj !== 'object') {
+      throw new ApiError(400, 'La persona debe ser un objeto');
     }
-    if (persona.estado !== 'ACTIVO') {
-      throw new ApiError(400, `La persona ${persona.nombreCompleto} no está activa`);
+    if (!personaObj.cc || String(personaObj.cc).trim() === '') {
+      throw new ApiError(400, 'La cédula de la persona es obligatoria');
     }
-    return persona;
+    if (!personaObj.name || String(personaObj.name).trim() === '') {
+      throw new ApiError(400, 'El nombre de la persona es obligatorio');
+    }
+    return personaObj;
   }
 
   /**
-   * Agregar múltiples miembros a una cuadrilla
+   * ✅ CAMBIADO: antes recibía array de ObjectIds y hacía lookups a BD.
+   *    Ahora recibe array de objetos persona desde API externa.
    */
-  async agregarMiembros(cuadrillaId, personasIds) {
+  async agregarMiembros(cuadrillaId, personasObjs) {
     const cuadrilla = await this.validateCuadrillaExists(cuadrillaId);
 
-    for (const personaId of personasIds) {
-      await this.validatePersona(personaId);
-      await cuadrilla.agregarMiembro(personaId);
+    for (const personaObj of personasObjs) {
+      this.validatePersona(personaObj);
+      await cuadrilla.agregarMiembro(personaObj);
     }
 
-    await cuadrilla.populate('miembros.persona');
-    await cuadrilla.populate('supervisor');
-    await cuadrilla.populate('nucleo');
-    
+    // ✅ REMOVIDO: .populate() ya no necesario, datos están embebidos
     return cuadrilla;
   }
 
   /**
-   * Obtener cuadrillas por supervisor
+   * ✅ CAMBIADO: antes filtraba por supervisor (ObjectId) y hacía .populate().
+   *    Ahora filtra por CC del supervisor embebido.
    */
-  async getCuadrillasBySupervisor(supervisorId) {
-    return await Cuadrilla.find({ supervisor: supervisorId, activa: true })
-      .populate('supervisor')
-      .populate('nucleo')
-      .populate('miembros.persona');
+  async getCuadrillasBySupervisor(supervisorCc) {
+    return await Cuadrilla.find({
+      'supervisor.cc': supervisorCc,
+      activa: true
+    }).sort({ nombre: 1 });
+    // ✅ REMOVIDO: .populate('supervisor'), .populate('nucleo'), .populate('miembros.persona')
+  }
+
+  /**
+   * ✅ NUEVO: obtener cuadrillas por núcleo (usando id embebido)
+   */
+  async getCuadrillasByNucleo(nucleoId) {
+    return await Cuadrilla.find({
+      'nucleo.id': nucleoId,
+      activa: true
+    }).sort({ nombre: 1 });
   }
 }
 
