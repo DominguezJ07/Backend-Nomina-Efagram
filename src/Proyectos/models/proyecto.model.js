@@ -1,6 +1,11 @@
 /**
  * proyecto.model.js
  * Ruta: src/Proyectos/models/proyecto.model.js
+ *
+ * ✅ Sin ObjectId en subdocumentos
+ * ✅ Sin ref
+ * ✅ Sin populate
+ * ✅ Objetos embebidos planos
  */
 
 const mongoose = require('mongoose');
@@ -9,19 +14,20 @@ const {
   PersonaSchema,
   ZonaSchema,
   ClienteRefSchema,
+  ActividadSchema,
 } = require('../schemas/embeddedSchemas');
 
 // Subdocumento interno: actividad por tipo de intervención
-// (este no viene de API externa, es propio del proyecto)
+// (datos propios del proyecto, no vienen de API externa)
 const actividadIntervencionSchema = new mongoose.Schema(
   {
-    nombre:          { type: String, required: true, trim: true },
+    nombre:          { type: String, trim: true, default: '' },
     precio_unitario: { type: Number, default: 0, min: 0 },
     cantidad:        { type: Number, default: 0, min: 0 },
     unidad:          { type: String, default: 'hectareas', trim: true },
     estado:          { type: String, default: 'Pendiente', trim: true },
   },
-  { _id: false }
+  { _id: false }   // ✅ Sin _id en subdocumento interno
 );
 
 const proyectoSchema = new mongoose.Schema(
@@ -40,21 +46,21 @@ const proyectoSchema = new mongoose.Schema(
     },
     descripcion: { type: String, trim: true },
 
-    // ✅ Cliente embebido — referencia liviana, estandarizada
+    // ✅ Cliente como objeto plano embebido
     cliente: {
-      type:     ClienteRefSchema,
-      required: [true, 'El cliente es obligatorio'],
+      nombre: { type: String, required: true, trim: true },
+      nit:    { type: String, trim: true, default: '' },
     },
 
-    // ✅ Zona embebida — viene de API externa, estandarizada
+    // ✅ Zona como objeto plano embebido
     zona: {
-      type:    ZonaSchema,
-      default: null,
+      nombre: { type: String, trim: true, default: null },
+      codigo: { type: String, trim: true, default: null },
     },
 
-    fecha_inicio:        { type: Date, required: true },
-    fecha_fin_estimada:  { type: Date },
-    fecha_fin_real:      { type: Date },
+    fecha_inicio:       { type: Date, required: true },
+    fecha_fin_estimada: { type: Date },
+    fecha_fin_real:     { type: Date },
 
     tipo_contrato: {
       type:    String,
@@ -91,10 +97,11 @@ const proyectoSchema = new mongoose.Schema(
       default: ESTADOS_PROYECTO.PLANEADO,
     },
 
-    // ✅ Responsable embebido — viene de API externa, estandarizado
+    // ✅ Responsable como objeto plano embebido
     responsable: {
-      type:    PersonaSchema,
-      default: null,
+      nombre:    { type: String, trim: true, default: null },
+      documento: { type: String, trim: true, default: null },
+      cargo:     { type: String, trim: true, default: null },
     },
 
     observaciones: { type: String, trim: true },
@@ -102,7 +109,7 @@ const proyectoSchema = new mongoose.Schema(
   { timestamps: true, versionKey: false }
 );
 
-// ── PRE-SAVE: Calcular totales de presupuesto ─────────────────────────
+// ── PRE-SAVE: Calcular totales de presupuesto ─────────────────
 function calcTotales(acts = []) {
   return {
     cantidadTotal: acts.reduce((s, a) => s + (Number(a.cantidad) || 0), 0),

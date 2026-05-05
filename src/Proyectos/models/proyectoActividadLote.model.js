@@ -1,15 +1,16 @@
 /**
  * proyectoActividadLote.model.js
  * Ruta: src/Proyectos/models/proyectoActividadLote.model.js
+ *
+ * ✅ Sin ObjectId en subdocumentos externos
+ * ✅ Sin populate
+ * ✅ Lote y actividad como objetos planos embebidos
+ * ⚠️ proyecto mantiene ObjectId — es modelo INTERNO del backend
+ *    necesario para buscar PALs por proyecto eficientemente
  */
 
 const mongoose = require('mongoose');
 const { ESTADOS_PAL } = require('../../config/constants');
-const {
-  PersonaSchema,
-  LoteSchema,
-  ActividadSchema,
-} = require('../schemas/embeddedSchemas');
 
 const proyectoActividadLoteSchema = new mongoose.Schema(
   {
@@ -21,24 +22,31 @@ const proyectoActividadLoteSchema = new mongoose.Schema(
       trim:      true,
     },
 
-    // ✅ ObjectId interno — Proyecto es un modelo de ESTE mismo backend
-    // Se mantiene como ObjectId para poder hacer queries eficientes por proyecto
+    // ⚠️ EXCEPCIÓN JUSTIFICADA: proyecto es modelo interno de este backend
+    // Sin este ObjectId no podemos hacer: find({ proyecto: proyectoId })
     proyecto: {
       type:     mongoose.Schema.Types.ObjectId,
       ref:      'Proyecto',
       required: [true, 'El proyecto es obligatorio'],
     },
 
-    // ✅ Objeto embebido — Lote viene de API externa
+    // ✅ Lote como objeto plano embebido — viene de API externa
     lote: {
-      type:     LoteSchema,
-      required: [true, 'El lote es obligatorio'],
+      nombre: { type: String, required: true, trim: true },
+      codigo: { type: String, trim: true, default: '' },
     },
 
-    // ✅ Objeto embebido — Actividad viene de API externa
+    // ✅ Actividad como objeto plano embebido — viene de API externa
     actividad: {
-      type:     ActividadSchema,
-      required: [true, 'La actividad es obligatoria'],
+      nombre: { type: String, required: true, trim: true },
+      codigo: { type: String, trim: true, default: '' },
+      unidad: { type: String, trim: true, default: 'hectareas' },
+    },
+
+    // ✅ Supervisor como objeto plano embebido — viene de API externa
+    supervisor_asignado: {
+      nombre:    { type: String, trim: true, default: null },
+      documento: { type: String, trim: true, default: null },
     },
 
     // REGLA DE NEGOCIO CRÍTICA
@@ -68,12 +76,6 @@ const proyectoActividadLoteSchema = new mongoose.Schema(
       default: ESTADOS_PAL.PENDIENTE,
     },
 
-    // ✅ Objeto embebido — Supervisor viene de API externa de personal
-    supervisor_asignado: {
-      type:    PersonaSchema,
-      default: null,
-    },
-
     prioridad: {
       type:    Number,
       min:     1,
@@ -89,14 +91,14 @@ const proyectoActividadLoteSchema = new mongoose.Schema(
   }
 );
 
-// ── ÍNDICES ───────────────────────────────────────────────────────────
+// ── ÍNDICES ───────────────────────────────────────────────────
 proyectoActividadLoteSchema.index({ proyecto: 1 });
 proyectoActividadLoteSchema.index({ 'lote.codigo': 1 });
 proyectoActividadLoteSchema.index({ 'actividad.nombre': 1 });
 proyectoActividadLoteSchema.index({ estado: 1 });
 proyectoActividadLoteSchema.index({ proyecto: 1, estado: 1 });
 
-// ── TRIGGER: meta_minima solo puede aumentar ──────────────────────────
+// ── TRIGGER: meta_minima solo puede aumentar ──────────────────
 proyectoActividadLoteSchema.pre('save', function () {
   if (this.isModified('meta_minima') && !this.isNew) {
     const original = this._original || {};
@@ -106,12 +108,11 @@ proyectoActividadLoteSchema.pre('save', function () {
   }
 });
 
-// ── Guardar valor original para comparar ─────────────────────────────
 proyectoActividadLoteSchema.post('init', function (doc) {
   doc._original = doc.toObject();
 });
 
-// ── VALIDACIÓN: No CUMPLIDA sin alcanzar meta ─────────────────────────
+// ── VALIDACIÓN: No CUMPLIDA sin alcanzar meta ─────────────────
 proyectoActividadLoteSchema.pre('save', function () {
   if (this.isModified('estado') && this.estado === ESTADOS_PAL.CUMPLIDA) {
     if (!this.meta_minima || this.meta_minima <= 0) {
@@ -123,7 +124,7 @@ proyectoActividadLoteSchema.pre('save', function () {
   }
 });
 
-// ── VIRTUALS ──────────────────────────────────────────────────────────
+// ── VIRTUALS ──────────────────────────────────────────────────
 proyectoActividadLoteSchema.virtual('porcentajeAvance').get(function () {
   if (!this.meta_minima || this.meta_minima === 0) return 0;
   return Math.round((this.cantidad_ejecutada / this.meta_minima) * 100);

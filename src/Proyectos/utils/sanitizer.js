@@ -1,218 +1,129 @@
 /**
- * ============================================================
  * sanitizer.js
  * Ruta: src/Proyectos/utils/sanitizer.js
- * ============================================================
  *
- * Funciones puras de sanitización y validación para objetos
- * embebidos. Garantizan que SOLO los campos permitidos lleguen
- * a MongoDB, sin importar lo que envíe el cliente.
+ * Funciones puras para limpiar y transformar datos del frontend
+ * antes de guardarlos en MongoDB.
  *
- * PATRÓN:
- *   sanitize*(input)  → devuelve objeto limpio o lanza ApiError
- * ============================================================
+ * ✅ Sin ObjectId
+ * ✅ Sin ref
+ * ✅ Solo datos planos
  */
 
-// Usamos ApiError si está disponible; si no, lanzamos Error estándar
-let ApiError;
-try {
-  ApiError = require('../middlewares/errorHandler').ApiError;
-} catch {
-  ApiError = class ApiError extends Error {
-    constructor(status, message) {
-      super(message);
-      this.statusCode = status;
-    }
-  };
-}
-
-// ── Helper interno ──────────────────────────────────────────
-const required = (value, campo) => {
-  if (value === undefined || value === null || String(value).trim() === '') {
-    throw new ApiError(400, `El campo '${campo}' es obligatorio`);
-  }
-  return String(value).trim();
+// ── Helper: lanzar error 400 ──────────────────────────────────
+const fail = (campo) => {
+  const err = new Error(`El campo '${campo}' es obligatorio`);
+  err.statusCode = 400;
+  throw err;
 };
 
-const optional = (value, fallback = null) => {
-  if (value === undefined || value === null || String(value).trim() === '') return fallback;
-  return String(value).trim();
-};
+const str = (val, fallback = null) =>
+  val !== undefined && val !== null && String(val).trim() !== ''
+    ? String(val).trim()
+    : fallback;
 
-const optionalNumber = (value, fallback = null) => {
-  const n = parseFloat(value);
+const num = (val, fallback = 0) => {
+  const n = parseFloat(val);
   return isNaN(n) ? fallback : n;
 };
 
-// ── PERSONA ─────────────────────────────────────────────────
-/**
- * Sanitiza un objeto persona de la API externa.
- * Acepta múltiples formatos de entrada (cc/document/documento, name/nombre)
- * y normaliza a la estructura estándar.
- *
- * Entrada admitida:
- *   { cc, name, cargo, proceso }          ← formato API externa
- *   { documento, nombre, cargo, proceso } ← formato alternativo
- *
- * Salida siempre:
- *   { documento, nombre, cargo, proceso }
- */
+// ── PERSONA ──────────────────────────────────────────────────
+// Acepta: { nombre, documento } o { name, cc }
 const sanitizePersona = (input, campo = 'persona') => {
-  if (!input || typeof input !== 'object') {
-    throw new ApiError(400, `El campo '${campo}' debe ser un objeto`);
-  }
-
-  // Normalizar claves: acepta cc o documento; name o nombre
-  const docRaw    = input.documento ?? input.cc ?? input.document ?? null;
-  const nombreRaw = input.nombre    ?? input.name                 ?? null;
-
+  if (!input || typeof input !== 'object') return null;
   return {
-    documento: required(docRaw,    `${campo}.documento`),
-    nombre:    required(nombreRaw, `${campo}.nombre`),
-    cargo:     optional(input.cargo),
-    proceso:   optional(input.proceso),
-    // 🚫 cualquier otro campo del input es ignorado (sanitización)
+    nombre:    str(input.nombre    ?? input.name,     null),
+    documento: str(input.documento ?? input.cc,       null),
   };
 };
 
-// ── ZONA ────────────────────────────────────────────────────
-/**
- * Acepta: { id, nombre } o { codigo, nombre }
- * Salida: { codigo, nombre }
- */
+// ── ZONA ─────────────────────────────────────────────────────
 const sanitizeZona = (input, campo = 'zona') => {
-  if (!input || typeof input !== 'object') {
-    throw new ApiError(400, `El campo '${campo}' debe ser un objeto`);
-  }
-
-  const codigoRaw = input.codigo ?? input.id ?? null;
-
+  if (!input || typeof input !== 'object') return null;
   return {
-    codigo: required(codigoRaw,   `${campo}.codigo`),
-    nombre: required(input.nombre, `${campo}.nombre`),
+    nombre: str(input.nombre, null),
+    codigo: str(input.codigo ?? input.id, null),
   };
 };
 
 // ── NUCLEO ───────────────────────────────────────────────────
-/**
- * Acepta: { nombre } o { nombre, codigo }
- * Salida: { codigo, nombre }
- */
-const sanitizeNucleo = (input, campo = 'nucleo') => {
-  if (!input || typeof input !== 'object') {
-    throw new ApiError(400, `El campo '${campo}' debe ser un objeto`);
-  }
-
-  return {
-    codigo: optional(input.codigo, ''),
-    nombre: required(input.nombre, `${campo}.nombre`),
-  };
+const sanitizeNucleo = (input) => {
+  if (!input || typeof input !== 'object') return null;
+  return { nombre: str(input.nombre, null) };
 };
 
 // ── FINCA ────────────────────────────────────────────────────
-/**
- * Acepta: { nombre, codigo }
- * Salida: { codigo, nombre }
- */
 const sanitizeFinca = (input, campo = 'finca') => {
-  if (!input || typeof input !== 'object') {
-    throw new ApiError(400, `El campo '${campo}' debe ser un objeto`);
-  }
-
+  if (!input || typeof input !== 'object') fail(campo);
+  if (!str(input.nombre)) fail(`${campo}.nombre`);
+  if (!str(input.codigo)) fail(`${campo}.codigo`);
   return {
-    codigo: required(input.codigo, `${campo}.codigo`),
-    nombre: required(input.nombre, `${campo}.nombre`),
+    nombre: str(input.nombre),
+    codigo: str(input.codigo),
   };
 };
 
 // ── LOTE ─────────────────────────────────────────────────────
-/**
- * Acepta: { nombre, codigo, area_hectareas }
- * Salida: { codigo, nombre, area_hectareas }
- */
 const sanitizeLote = (input, campo = 'lote') => {
-  if (!input || typeof input !== 'object') {
-    throw new ApiError(400, `El campo '${campo}' debe ser un objeto`);
-  }
-
+  if (!input || typeof input !== 'object') fail(campo);
+  if (!str(input.nombre)) fail(`${campo}.nombre`);
   return {
-    codigo:         optional(input.codigo, ''),
-    nombre:         required(input.nombre, `${campo}.nombre`),
-    area_hectareas: optionalNumber(input.area_hectareas),
+    nombre: str(input.nombre),
+    codigo: str(input.codigo, ''),
   };
 };
 
 // ── ACTIVIDAD ────────────────────────────────────────────────
-/**
- * Acepta: { nombre, codigo, unidad }
- * Salida: { codigo, nombre, unidad }
- */
-const sanitizeActividad = (input, campo = 'actividad') => {
-  if (!input || typeof input !== 'object') {
-    throw new ApiError(400, `El campo '${campo}' debe ser un objeto`);
-  }
-
+const sanitizeActividad = (input) => {
+  if (!input || typeof input !== 'object') return null;
   return {
-    codigo: optional(input.codigo, ''),
-    nombre: required(input.nombre, `${campo}.nombre`),
-    unidad: optional(input.unidad, 'hectareas'),
-  };
-};
-
-// ── CONTRATO REF ─────────────────────────────────────────────
-/**
- * Acepta: { codigo, nombre }
- * Salida: { codigo, nombre }
- */
-const sanitizeContratoRef = (input, campo = 'contrato') => {
-  if (!input || typeof input !== 'object') {
-    throw new ApiError(400, `El campo '${campo}' debe ser un objeto`);
-  }
-
-  return {
-    codigo: required(input.codigo, `${campo}.codigo`).toUpperCase(),
-    nombre: optional(input.nombre, ''),
+    actividad: {
+      nombre: str(input.actividad?.nombre, null),
+    },
+    asignacion_subproyecto: {
+      nombre: str(input.asignacion_subproyecto?.nombre, null),
+    },
+    cantidad:        num(input.cantidad,        0),
+    precio_unitario: num(input.precio_unitario, 0),
   };
 };
 
 // ── CUADRILLA ────────────────────────────────────────────────
-const sanitizeCuadrilla = (input, campo = 'cuadrilla') => {
-  if (!input || typeof input !== 'object') {
-    throw new ApiError(400, `El campo '${campo}' debe ser un objeto`);
-  }
-
+const sanitizeCuadrilla = (input) => {
+  if (!input || typeof input !== 'object') return null;
   return {
-    codigo: optional(input.codigo, ''),
-    nombre: required(input.nombre, `${campo}.nombre`),
+    nombre: str(input.nombre, null),
+    codigo: str(input.codigo, null),
+  };
+};
+
+// ── CONTRATO REF ─────────────────────────────────────────────
+const sanitizeContratoRef = (input, campo = 'contrato') => {
+  if (!input || typeof input !== 'object') fail(campo);
+  if (!str(input.codigo)) fail(`${campo}.codigo`);
+  return {
+    codigo: str(input.codigo).toUpperCase(),
+    nombre: str(input.nombre, ''),
   };
 };
 
 // ── CLIENTE REF ──────────────────────────────────────────────
 const sanitizeClienteRef = (input, campo = 'cliente') => {
-  if (!input || typeof input !== 'object') {
-    throw new ApiError(400, `El campo '${campo}' debe ser un objeto`);
-  }
-
+  if (!input || typeof input !== 'object') fail(campo);
+  if (!str(input.nombre)) fail(`${campo}.nombre`);
   return {
-    nombre: required(input.nombre, `${campo}.nombre`),
-    nit:    optional(input.nit, ''),
+    nombre: str(input.nombre),
+    nit:    str(input.nit, ''),
   };
 };
 
-// ── Arrays ───────────────────────────────────────────────────
-/**
- * Sanitiza un array usando una función sanitizadora.
- * Filtra elementos null/undefined antes de procesar.
- * @param {Array} arr - Array de entrada
- * @param {Function} sanitizeFn - Función sanitizadora por elemento
- * @param {string} campo - Nombre del campo (para mensajes de error)
- */
-const sanitizeArray = (arr, sanitizeFn, campo = 'items') => {
-  if (!Array.isArray(arr)) return [];
-  return arr
-    .filter(item => item !== null && item !== undefined)
-    .map((item, i) => sanitizeFn(item, `${campo}[${i}]`));
-};
+// ── ARRAYS ───────────────────────────────────────────────────
+const sanitizeFincas      = (arr) => (arr || []).filter(Boolean).map(sanitizeFinca);
+const sanitizeLotes       = (arr) => (arr || []).filter(Boolean).map(sanitizeLote);
+const sanitizePersonas    = (arr) => (arr || []).filter(Boolean).map(sanitizePersona).filter(Boolean);
+const sanitizeNucleos     = (arr) => (arr || []).filter(Boolean).map(sanitizeNucleo).filter(Boolean);
+const sanitizeCuadrillas  = (arr) => (arr || []).filter(Boolean).map(sanitizeCuadrilla).filter(Boolean);
+const sanitizeActividades = (arr) => (arr || []).filter(Boolean).map(sanitizeActividad).filter(Boolean);
 
 module.exports = {
   sanitizePersona,
@@ -221,12 +132,17 @@ module.exports = {
   sanitizeFinca,
   sanitizeLote,
   sanitizeActividad,
-  sanitizeContratoRef,
   sanitizeCuadrilla,
+  sanitizeContratoRef,
   sanitizeClienteRef,
-  sanitizeArray,
-  // helpers internos exportados para uso en controllers
-  _required:       required,
-  _optional:       optional,
-  _optionalNumber: optionalNumber,
+  // arrays
+  sanitizeFincas,
+  sanitizeLotes,
+  sanitizePersonas,
+  sanitizeNucleos,
+  sanitizeCuadrillas,
+  sanitizeActividades,
+  // helpers
+  _str: str,
+  _num: num,
 };

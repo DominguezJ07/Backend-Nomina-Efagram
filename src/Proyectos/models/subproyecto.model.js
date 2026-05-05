@@ -1,15 +1,14 @@
 /**
  * subproyecto.model.js
  * Ruta: src/Proyectos/models/subproyecto.model.js
+ *
+ * ✅ Sin ObjectId en subdocumentos
+ * ✅ Sin ref
+ * ✅ Sin populate
+ * ✅ Objetos embebidos planos
  */
 
 const mongoose = require('mongoose');
-const {
-  PersonaSchema,
-  NucleoSchema,
-  CuadrillaSchema,
-  ClienteRefSchema,
-} = require('../schemas/embeddedSchemas');
 
 const subproyectoSchema = new mongoose.Schema(
   {
@@ -26,37 +25,72 @@ const subproyectoSchema = new mongoose.Schema(
       trim:     true,
     },
 
-    // ✅ Referencia interna liviana al proyecto padre
-    // Se guarda como objeto embebido para evitar lookups,
-    // pero proyecto._id se guarda para poder hacer queries internas
+    // ✅ Proyecto como objeto plano embebido — sin ObjectId, sin ref
     proyecto: {
-      _id:    { type: mongoose.Schema.Types.ObjectId, required: true },
       codigo: { type: String, required: true, trim: true },
       nombre: { type: String, trim: true, default: '' },
     },
 
-    // ✅ Núcleos — estandarizados con NucleoSchema
-    nucleos: {
-      type:    [NucleoSchema],
-      default: [],
-    },
+    // ✅ Núcleos — array de objetos planos
+    nucleos: [
+      {
+        _id:    false,
+        nombre: { type: String, trim: true, default: null },
+      },
+    ],
 
-    // ✅ Cuadrillas — estandarizadas con CuadrillaSchema
-    cuadrillas: {
-      type:    [CuadrillaSchema],
-      default: [],
-    },
+    // ✅ Cuadrillas — array de objetos planos
+    cuadrillas: [
+      {
+        _id:    false,
+        nombre: { type: String, trim: true, default: null },
+        codigo: { type: String, trim: true, default: null },
+      },
+    ],
 
-    // ✅ Supervisor — PersonaSchema estandarizado
+    // ✅ Personal — array de objetos planos
+    personal: [
+      {
+        _id:       false,
+        nombre:    { type: String, trim: true, default: null },
+        documento: { type: String, trim: true, default: null },
+      },
+    ],
+
+    // ✅ Fincas — array de objetos planos
+    fincas: [
+      {
+        _id:    false,
+        nombre: { type: String, trim: true, default: null },
+        codigo: { type: String, trim: true, default: null },
+      },
+    ],
+
+    // ✅ Actividades — array de objetos planos
+    actividades: [
+      {
+        _id: false,
+        actividad: {
+          nombre: { type: String, trim: true, default: null },
+        },
+        asignacion_subproyecto: {
+          nombre: { type: String, trim: true, default: null },
+        },
+        cantidad:        { type: Number, default: 0 },
+        precio_unitario: { type: Number, default: 0 },
+      },
+    ],
+
+    // ✅ Supervisor — objeto plano embebido
     supervisor: {
-      type:    PersonaSchema,
-      default: null,
+      nombre:    { type: String, trim: true, default: null },
+      documento: { type: String, trim: true, default: null },
     },
 
-    // ✅ Cliente — referencia liviana estandarizada
+    // ✅ Cliente — objeto plano embebido
     cliente: {
-      type:    ClienteRefSchema,
-      default: null,
+      nombre: { type: String, trim: true, default: null },
+      nit:    { type: String, trim: true, default: null },
     },
 
     fecha_inicio:       { type: Date },
@@ -73,10 +107,9 @@ const subproyectoSchema = new mongoose.Schema(
   { timestamps: true, versionKey: false }
 );
 
-// ── ÍNDICES ───────────────────────────────────────────────────────────
-subproyectoSchema.index({ 'proyecto._id': 1 });
+// ── ÍNDICES ───────────────────────────────────────────────────
 subproyectoSchema.index({ 'proyecto.codigo': 1 });
-subproyectoSchema.index({ 'proyecto._id': 1, estado: 1 });
+subproyectoSchema.index({ 'proyecto.codigo': 1, estado: 1 });
 
 subproyectoSchema.set('toJSON',   { virtuals: true });
 subproyectoSchema.set('toObject', { virtuals: true });

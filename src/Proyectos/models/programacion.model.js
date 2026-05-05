@@ -1,6 +1,11 @@
 /**
  * programacion.model.js
  * Ruta: src/Proyectos/models/programacion.model.js
+ *
+ * ✅ Sin ObjectId en subdocumentos
+ * ✅ Sin ref
+ * ✅ Sin populate
+ * ✅ Objetos embebidos planos
  */
 
 const mongoose = require('mongoose');
@@ -8,13 +13,12 @@ const {
   PersonaSchema,
   FincaSchema,
   LoteSchema,
-  ActividadSchema,
   ContratoRefSchema,
 } = require('../schemas/embeddedSchemas');
 
 const programacionSchema = new mongoose.Schema(
   {
-    // ✅ Referencia liviana al contrato (API externa o sistema interno)
+    // ✅ Contrato como objeto plano embebido
     contrato: {
       type:     ContratoRefSchema,
       required: [true, 'El contrato es obligatorio'],
@@ -50,19 +54,20 @@ const programacionSchema = new mongoose.Schema(
       min:     [0, 'El valor proyectado debe ser mayor o igual a 0'],
     },
 
-    // ✅ Objeto embebido — actividad del catálogo externo
+    // ✅ Actividad como objeto plano embebido
     actividad: {
-      type:     ActividadSchema,
-      required: [true, 'La actividad es obligatoria'],
+      nombre: { type: String, trim: true, default: null },
+      codigo: { type: String, trim: true, default: '' },
+      unidad: { type: String, trim: true, default: 'hectareas' },
     },
 
-    // ✅ Objeto embebido — finca de la API externa
+    // ✅ Finca como objeto plano embebido
     finca: {
       type:     FincaSchema,
       required: [true, 'La finca es obligatoria'],
     },
 
-    // ✅ Objeto embebido — lote de la API externa
+    // ✅ Lote como objeto plano embebido
     lote: {
       type:     LoteSchema,
       required: [true, 'El lote es obligatorio'],
@@ -81,13 +86,13 @@ const programacionSchema = new mongoose.Schema(
       max:     200,
     },
 
-    // ✅ Objeto embebido estandarizado — persona que creó
+    // ✅ Persona que creó — objeto plano embebido
     creado_por: {
       type:    PersonaSchema,
       default: null,
     },
 
-    // ✅ Objeto embebido estandarizado — persona que actualizó
+    // ✅ Persona que actualizó — objeto plano embebido
     actualizado_por: {
       type:    PersonaSchema,
       default: null,
@@ -107,15 +112,14 @@ const programacionSchema = new mongoose.Schema(
   }
 );
 
-// ── ÍNDICES ───────────────────────────────────────────────────────────
+// ── ÍNDICES ───────────────────────────────────────────────────
 programacionSchema.index({ 'contrato.codigo': 1 });
 programacionSchema.index({ fecha_inicial: 1 });
 programacionSchema.index({ estado: 1 });
 programacionSchema.index({ 'finca.codigo': 1 });
-programacionSchema.index({ 'actividad.nombre': 1 });
 programacionSchema.index({ 'contrato.codigo': 1, fecha_inicial: 1 });
 
-// ── VIRTUAL: Días restantes ───────────────────────────────────────────
+// ── VIRTUAL: Días restantes ───────────────────────────────────
 programacionSchema.virtual('dias_restantes').get(function () {
   const hoy  = new Date();
   const fin  = new Date(this.fecha_final);
@@ -123,7 +127,7 @@ programacionSchema.virtual('dias_restantes').get(function () {
   return Math.max(0, Math.ceil(diff / (1000 * 3600 * 24)));
 });
 
-// ── VIRTUAL: Estado semana ────────────────────────────────────────────
+// ── VIRTUAL: Estado semana ────────────────────────────────────
 programacionSchema.virtual('estado_semana').get(function () {
   if (this.estado === 'COMPLETADA') return 'COMPLETADA';
   if (this.estado === 'CANCELADA')  return 'CANCELADA';
@@ -132,7 +136,7 @@ programacionSchema.virtual('estado_semana').get(function () {
   return 'EN PROGRESO';
 });
 
-// ── PRE-SAVE: Calcular fecha_final y semana ───────────────────────────
+// ── PRE-SAVE: Calcular fecha_final y semana ───────────────────
 programacionSchema.pre('save', async function () {
   if (this.fecha_inicial && !this.fecha_final) {
     const fechaFinal = new Date(this.fecha_inicial);
@@ -147,7 +151,7 @@ programacionSchema.pre('save', async function () {
   }
 });
 
-// ── PRE-SAVE: Validar duplicado por contrato.codigo + fecha ──────────
+// ── PRE-SAVE: Validar duplicado ───────────────────────────────
 programacionSchema.pre('save', async function () {
   if (this.isNew) {
     const existente = await mongoose.model('Programacion').findOne({
@@ -161,26 +165,13 @@ programacionSchema.pre('save', async function () {
   }
 });
 
-// ── MÉTODOS ───────────────────────────────────────────────────────────
+// ── MÉTODOS ───────────────────────────────────────────────────
 programacionSchema.methods.actualizarPorcentaje = function () {
   if (this.cantidad_proyectada > 0) {
     this.porcentaje_cumplimiento = Math.round(
       (this.cantidad_ejecutada_total / this.cantidad_proyectada) * 100
     );
   }
-  return this.save();
-};
-
-programacionSchema.methods.estaCompletada = async function () {
-  const registros = await mongoose.model('RegistroDiarioProgramacion').find({
-    programacion: this._id,
-    estado:       'COMPLETADO',
-  });
-  return registros.length === 7;
-};
-
-programacionSchema.methods.marcarCompletada = async function () {
-  this.estado = 'COMPLETADA';
   return this.save();
 };
 

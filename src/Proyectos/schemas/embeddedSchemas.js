@@ -1,224 +1,72 @@
 /**
- * ============================================================
  * embeddedSchemas.js
  * Ruta: src/Proyectos/schemas/embeddedSchemas.js
- * ============================================================
  *
- * FUENTE ÚNICA DE VERDAD para todos los subdocumentos embebidos.
- *
- * REGLA ARQUITECTÓNICA:
- *   - Datos de API EXTERNA   → objeto embebido (sin ObjectId, sin ref)
- *   - Datos de modelo INTERNO → ObjectId + ref (solo cuando el modelo vive en este mismo backend)
- *
- * USO:
- *   const { PersonaSchema, ZonaSchema } = require('../schemas/embeddedSchemas');
- * ============================================================
+ * Estructuras planas reutilizables para objetos embebidos.
+ * ✅ Sin _id
+ * ✅ Sin ObjectId
+ * ✅ Sin ref
+ * ✅ Solo datos planos
  */
 
-const mongoose = require('mongoose');
+// ── PERSONA ──────────────────────────────────────────────────
+const PersonaSchema = {
+  nombre:    { type: String, trim: true, default: null },
+  documento: { type: String, trim: true, default: null },
+};
 
-// ──────────────────────────────────────────────────────────────
-// PERSONA
-// Fuente: API externa de nómina / personal
-// Campos: documento de identidad y nombre completo son obligatorios
-// ──────────────────────────────────────────────────────────────
-const PersonaSchema = new mongoose.Schema(
-  {
-    documento: {
-      type:     String,
-      required: [true, 'El documento de la persona es obligatorio'],
-      trim:     true,
-    },
-    nombre: {
-      type:     String,
-      required: [true, 'El nombre de la persona es obligatorio'],
-      trim:     true,
-    },
-    cargo: {
-      type:    String,
-      trim:    true,
-      default: null,
-    },
-    // Campos opcionales según contexto de uso
-    proceso: {
-      type:    String,
-      trim:    true,
-      default: null,
-    },
-  },
-  { _id: false }
-);
+// ── ZONA ─────────────────────────────────────────────────────
+const ZonaSchema = {
+  nombre: { type: String, trim: true, default: null },
+  codigo: { type: String, trim: true, default: null },
+};
 
-// ──────────────────────────────────────────────────────────────
-// ZONA
-// Fuente: API externa de geografía / estructura organizacional
-// ──────────────────────────────────────────────────────────────
-const ZonaSchema = new mongoose.Schema(
-  {
-    codigo: {
-      type:     String,
-      required: [true, 'El código de la zona es obligatorio'],
-      trim:     true,
-    },
-    nombre: {
-      type:     String,
-      required: [true, 'El nombre de la zona es obligatorio'],
-      trim:     true,
-    },
-  },
-  { _id: false }
-);
+// ── NUCLEO ───────────────────────────────────────────────────
+const NucleoSchema = {
+  nombre: { type: String, trim: true, default: null },
+};
 
-// ──────────────────────────────────────────────────────────────
-// NUCLEO
-// Fuente: API externa de estructura operativa
-// ──────────────────────────────────────────────────────────────
-const NucleoSchema = new mongoose.Schema(
-  {
-    codigo: {
-      type:    String,
-      trim:    true,
-      default: '',
-    },
-    nombre: {
-      type:     String,
-      required: [true, 'El nombre del núcleo es obligatorio'],
-      trim:     true,
-    },
-  },
-  { _id: false }
-);
+// ── FINCA ────────────────────────────────────────────────────
+const FincaSchema = {
+  nombre: { type: String, required: true, trim: true },
+  codigo: { type: String, required: true, trim: true },
+};
 
-// ──────────────────────────────────────────────────────────────
-// FINCA
-// Fuente: API externa de activos / propiedades
-// ──────────────────────────────────────────────────────────────
-const FincaSchema = new mongoose.Schema(
-  {
-    codigo: {
-      type:     String,
-      required: [true, 'El código de la finca es obligatorio'],
-      trim:     true,
-    },
-    nombre: {
-      type:     String,
-      required: [true, 'El nombre de la finca es obligatorio'],
-      trim:     true,
-    },
-  },
-  { _id: false }
-);
+// ── LOTE ─────────────────────────────────────────────────────
+const LoteSchema = {
+  nombre: { type: String, required: true, trim: true },
+  codigo: { type: String, trim: true, default: '' },
+};
 
-// ──────────────────────────────────────────────────────────────
-// LOTE
-// Fuente: API externa de activos / subdivisiones de finca
-// ──────────────────────────────────────────────────────────────
-const LoteSchema = new mongoose.Schema(
-  {
-    codigo: {
-      type:    String,
-      trim:    true,
-      default: '',
-    },
-    nombre: {
-      type:     String,
-      required: [true, 'El nombre del lote es obligatorio'],
-      trim:     true,
-    },
-    area_hectareas: {
-      type:    Number,
-      default: null,
-      min:     0,
-    },
+// ── ACTIVIDAD ────────────────────────────────────────────────
+const ActividadSchema = {
+  actividad: {
+    nombre: { type: String, trim: true, default: null },
   },
-  { _id: false }
-);
+  asignacion_subproyecto: {
+    nombre: { type: String, trim: true, default: null },
+  },
+  cantidad:        { type: Number, default: 0 },
+  precio_unitario: { type: Number, default: 0 },
+};
 
-// ──────────────────────────────────────────────────────────────
-// ACTIVIDAD
-// Fuente: API externa de catálogo de actividades
-// ──────────────────────────────────────────────────────────────
-const ActividadSchema = new mongoose.Schema(
-  {
-    codigo: {
-      type:    String,
-      trim:    true,
-      default: '',
-    },
-    nombre: {
-      type:     String,
-      required: [true, 'El nombre de la actividad es obligatorio'],
-      trim:     true,
-    },
-    unidad: {
-      type:    String,
-      trim:    true,
-      default: 'hectareas',
-    },
-  },
-  { _id: false }
-);
+// ── CUADRILLA ────────────────────────────────────────────────
+const CuadrillaSchema = {
+  nombre: { type: String, trim: true, default: null },
+  codigo: { type: String, trim: true, default: null },
+};
 
-// ──────────────────────────────────────────────────────────────
-// CONTRATO
-// Fuente: API externa o modelo interno simplificado
-// Solo se embebe una referencia liviana, no el contrato completo
-// ──────────────────────────────────────────────────────────────
-const ContratoRefSchema = new mongoose.Schema(
-  {
-    codigo: {
-      type:     String,
-      required: [true, 'El código del contrato es obligatorio'],
-      trim:     true,
-    },
-    nombre: {
-      type:    String,
-      trim:    true,
-      default: '',
-    },
-  },
-  { _id: false }
-);
+// ── CONTRATO REF ─────────────────────────────────────────────
+const ContratoRefSchema = {
+  codigo: { type: String, required: true, trim: true },
+  nombre: { type: String, trim: true, default: '' },
+};
 
-// ──────────────────────────────────────────────────────────────
-// CUADRILLA
-// Fuente: API externa de gestión de cuadrillas
-// ──────────────────────────────────────────────────────────────
-const CuadrillaSchema = new mongoose.Schema(
-  {
-    codigo: {
-      type:    String,
-      trim:    true,
-      default: '',
-    },
-    nombre: {
-      type:     String,
-      required: [true, 'El nombre de la cuadrilla es obligatorio'],
-      trim:     true,
-    },
-  },
-  { _id: false }
-);
-
-// ──────────────────────────────────────────────────────────────
-// CLIENTE EMBEBIDO
-// Fuente: modelo interno (Cliente) — se embebe solo la referencia liviana
-// ──────────────────────────────────────────────────────────────
-const ClienteRefSchema = new mongoose.Schema(
-  {
-    nombre: {
-      type:     String,
-      required: [true, 'El nombre del cliente es obligatorio'],
-      trim:     true,
-    },
-    nit: {
-      type:    String,
-      trim:    true,
-      default: '',
-    },
-  },
-  { _id: false }
-);
+// ── CLIENTE REF ──────────────────────────────────────────────
+const ClienteRefSchema = {
+  nombre: { type: String, required: true, trim: true },
+  nit:    { type: String, trim: true, default: '' },
+};
 
 module.exports = {
   PersonaSchema,
@@ -227,7 +75,7 @@ module.exports = {
   FincaSchema,
   LoteSchema,
   ActividadSchema,
-  ContratoRefSchema,
   CuadrillaSchema,
+  ContratoRefSchema,
   ClienteRefSchema,
 };
