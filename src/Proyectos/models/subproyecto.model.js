@@ -1,76 +1,84 @@
+/**
+ * subproyecto.model.js
+ * Ruta: src/Proyectos/models/subproyecto.model.js
+ */
+
 const mongoose = require('mongoose');
+const {
+  PersonaSchema,
+  NucleoSchema,
+  CuadrillaSchema,
+  ClienteRefSchema,
+} = require('../schemas/embeddedSchemas');
 
 const subproyectoSchema = new mongoose.Schema(
   {
     codigo: {
-      type: String,
-      required: [true, 'El código es obligatorio'],
-      unique: true,
+      type:      String,
+      required:  [true, 'El código es obligatorio'],
+      unique:    true,
       uppercase: true,
-      trim: true,
+      trim:      true,
     },
     nombre: {
-      type: String,
+      type:     String,
       required: [true, 'El nombre es obligatorio'],
-      trim: true,
+      trim:     true,
     },
+
+    // ✅ Referencia interna liviana al proyecto padre
+    // Se guarda como objeto embebido para evitar lookups,
+    // pero proyecto._id se guarda para poder hacer queries internas
     proyecto: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Proyecto',
-      required: [true, 'El proyecto es obligatorio'],
+      _id:    { type: mongoose.Schema.Types.ObjectId, required: true },
+      codigo: { type: String, required: true, trim: true },
+      nombre: { type: String, trim: true, default: '' },
     },
 
-    // Núcleos asignados (deben pertenecer a la zona del proyecto)
-    nucleos: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Nucleo',
-      },
-    ],
+    // ✅ Núcleos — estandarizados con NucleoSchema
+    nucleos: {
+      type:    [NucleoSchema],
+      default: [],
+    },
 
-    // 🔥 NUEVO: Cuadrillas asignadas al subproyecto
-    cuadrillas: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Cuadrilla',
-      },
-    ],
+    // ✅ Cuadrillas — estandarizadas con CuadrillaSchema
+    cuadrillas: {
+      type:    [CuadrillaSchema],
+      default: [],
+    },
 
+    // ✅ Supervisor — PersonaSchema estandarizado
     supervisor: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Persona',
+      type:    PersonaSchema,
+      default: null,
     },
+
+    // ✅ Cliente — referencia liviana estandarizada
     cliente: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Cliente',
+      type:    ClienteRefSchema,
+      default: null,
     },
-    fecha_inicio: {
-      type: Date,
-    },
-    fecha_fin_estimada: {
-      type: Date,
-    },
+
+    fecha_inicio:       { type: Date },
+    fecha_fin_estimada: { type: Date },
+
     estado: {
-      type: String,
-      enum: ['ACTIVO', 'CERRADO', 'CANCELADO'],
+      type:    String,
+      enum:    ['ACTIVO', 'CERRADO', 'CANCELADO'],
       default: 'ACTIVO',
     },
-    observaciones: {
-      type: String,
-      trim: true,
-    },
+
+    observaciones: { type: String, trim: true },
   },
   { timestamps: true, versionKey: false }
 );
 
-// Índices
-subproyectoSchema.index({ proyecto: 1 });
-subproyectoSchema.index({ proyecto: 1, estado: 1 });
+// ── ÍNDICES ───────────────────────────────────────────────────────────
+subproyectoSchema.index({ 'proyecto._id': 1 });
+subproyectoSchema.index({ 'proyecto.codigo': 1 });
+subproyectoSchema.index({ 'proyecto._id': 1, estado: 1 });
 
-// (Opcional recomendado) índice para consultas por cuadrilla
-subproyectoSchema.index({ cuadrillas: 1 });
-
-subproyectoSchema.set('toJSON', { virtuals: true });
+subproyectoSchema.set('toJSON',   { virtuals: true });
 subproyectoSchema.set('toObject', { virtuals: true });
 
 module.exports = mongoose.model('Subproyecto', subproyectoSchema);

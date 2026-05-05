@@ -1,121 +1,129 @@
+/**
+ * programacion.model.js
+ * Ruta: src/Proyectos/models/programacion.model.js
+ */
 
 const mongoose = require('mongoose');
+const {
+  PersonaSchema,
+  FincaSchema,
+  LoteSchema,
+  ActividadSchema,
+  ContratoRefSchema,
+} = require('../schemas/embeddedSchemas');
 
 const programacionSchema = new mongoose.Schema(
   {
+    // ✅ Referencia liviana al contrato (API externa o sistema interno)
     contrato: {
-      type: mongoose.Schema.Types.ObjectId,
-
-      ref: 'Contrato',
+      type:     ContratoRefSchema,
       required: [true, 'El contrato es obligatorio'],
     },
 
     fecha_inicial: {
-      type: Date,
+      type:     Date,
       required: [true, 'La fecha inicial es obligatoria'],
     },
 
-    fecha_final: {
-      type: Date,
-    },
+    fecha_final: { type: Date },
 
     semana: {
-      type: Number,
+      type:    Number,
       default: 1,
     },
 
     estado: {
-      type: String,
-      enum: ['ACTIVA', 'COMPLETADA', 'CANCELADA', 'PAUSADA'],
+      type:    String,
+      enum:    ['ACTIVA', 'COMPLETADA', 'CANCELADA', 'PAUSADA'],
       default: 'ACTIVA',
     },
 
     cantidad_proyectada: {
-      type: Number,
+      type:    Number,
       default: 1,
-      min: [0, 'La cantidad proyectada debe ser mayor o igual a 0'],
+      min:     [0, 'La cantidad proyectada debe ser mayor o igual a 0'],
     },
 
     valor_proyectado: {
-      type: Number,
+      type:    Number,
       default: 0,
-      min: [0, 'El valor proyectado debe ser mayor o igual a 0'],
+      min:     [0, 'El valor proyectado debe ser mayor o igual a 0'],
     },
 
+    // ✅ Objeto embebido — actividad del catálogo externo
     actividad: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'ActividadCatalogo',
+      type:     ActividadSchema,
       required: [true, 'La actividad es obligatoria'],
     },
 
+    // ✅ Objeto embebido — finca de la API externa
     finca: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Finca',
+      type:     FincaSchema,
       required: [true, 'La finca es obligatoria'],
     },
 
+    // ✅ Objeto embebido — lote de la API externa
     lote: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Lote',
+      type:     LoteSchema,
       required: [true, 'El lote es obligatorio'],
     },
 
     cantidad_ejecutada_total: {
-      type: Number,
+      type:    Number,
       default: 0,
-      min: 0,
+      min:     0,
     },
 
     porcentaje_cumplimiento: {
-      type: Number,
+      type:    Number,
       default: 0,
-      min: 0,
-      max: 200,
+      min:     0,
+      max:     200,
     },
 
+    // ✅ Objeto embebido estandarizado — persona que creó
     creado_por: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Persona',
+      type:    PersonaSchema,
       default: null,
     },
 
+    // ✅ Objeto embebido estandarizado — persona que actualizó
     actualizado_por: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Persona',
+      type:    PersonaSchema,
       default: null,
     },
 
     observaciones: {
-      type: String,
-      trim: true,
+      type:    String,
+      trim:    true,
       default: '',
     },
   },
   {
     timestamps: true,
     versionKey: false,
-    toJSON: { virtuals: true },
+    toJSON:   { virtuals: true },
     toObject: { virtuals: true },
   }
 );
 
 // ── ÍNDICES ───────────────────────────────────────────────────────────
-programacionSchema.index({ contrato: 1 });
+programacionSchema.index({ 'contrato.codigo': 1 });
 programacionSchema.index({ fecha_inicial: 1 });
 programacionSchema.index({ estado: 1 });
-programacionSchema.index({ finca: 1 }); 
-programacionSchema.index({ actividad: 1 });
-programacionSchema.index({ contrato: 1, fecha_inicial: 1 }, { unique: false });
+programacionSchema.index({ 'finca.codigo': 1 });
+programacionSchema.index({ 'actividad.nombre': 1 });
+programacionSchema.index({ 'contrato.codigo': 1, fecha_inicial: 1 });
 
 // ── VIRTUAL: Días restantes ───────────────────────────────────────────
 programacionSchema.virtual('dias_restantes').get(function () {
-  const hoy      = new Date();
-  const fin      = new Date(this.fecha_final);
-  const diff     = fin.getTime() - hoy.getTime();
+  const hoy  = new Date();
+  const fin  = new Date(this.fecha_final);
+  const diff = fin.getTime() - hoy.getTime();
   return Math.max(0, Math.ceil(diff / (1000 * 3600 * 24)));
 });
 
-// ── VIRTUAL: Estado de la semana ──────────────────────────────────────
+// ── VIRTUAL: Estado semana ────────────────────────────────────────────
 programacionSchema.virtual('estado_semana').get(function () {
   if (this.estado === 'COMPLETADA') return 'COMPLETADA';
   if (this.estado === 'CANCELADA')  return 'CANCELADA';
@@ -124,37 +132,29 @@ programacionSchema.virtual('estado_semana').get(function () {
   return 'EN PROGRESO';
 });
 
-// ── PRE-SAVE #1: Calcular fecha_final y semana ────────────────────────
-// ✅ FIX BUG #1: async sin `next` (Mongoose v6+ resuelve con return/throw)
-// ✅ FIX BUG #2: +6 días (semana = día 0 al día 6 = 7 días total)
+// ── PRE-SAVE: Calcular fecha_final y semana ───────────────────────────
 programacionSchema.pre('save', async function () {
-  // Calcular fecha_final solo si no fue seteada explícitamente
   if (this.fecha_inicial && !this.fecha_final) {
     const fechaFinal = new Date(this.fecha_inicial);
-    fechaFinal.setDate(fechaFinal.getDate() + 6); // ✅ +6 = 7 días
+    fechaFinal.setDate(fechaFinal.getDate() + 6);
     this.fecha_final = fechaFinal;
   }
-
-  // Calcular número de semana relativo a fecha_inicial
   if (this.fecha_inicial) {
-    const hoy       = new Date();
-    const diff      = hoy.getTime() - new Date(this.fecha_inicial).getTime();
-    const dias      = Math.floor(diff / (1000 * 3600 * 24));
-    this.semana     = Math.max(1, Math.floor(dias / 7) + 1);
+    const hoy   = new Date();
+    const diff  = hoy.getTime() - new Date(this.fecha_inicial).getTime();
+    const dias  = Math.floor(diff / (1000 * 3600 * 24));
+    this.semana = Math.max(1, Math.floor(dias / 7) + 1);
   }
-  // No retorna nada = éxito en Mongoose v6+
 });
 
-// ── PRE-SAVE #2: Validar que no exista duplicado ──────────────────────
-// ✅ FIX BUG #1: async sin `next`, usa throw para errores
+// ── PRE-SAVE: Validar duplicado por contrato.codigo + fecha ──────────
 programacionSchema.pre('save', async function () {
   if (this.isNew) {
     const existente = await mongoose.model('Programacion').findOne({
-      contrato:      this.contrato,
-      fecha_inicial: this.fecha_inicial,
-      _id:           { $ne: this._id },
+      'contrato.codigo': this.contrato.codigo,
+      fecha_inicial:     this.fecha_inicial,
+      _id:               { $ne: this._id },
     });
-
     if (existente) {
       throw new Error('Ya existe una programación para este contrato en esta fecha');
     }
@@ -174,7 +174,7 @@ programacionSchema.methods.actualizarPorcentaje = function () {
 programacionSchema.methods.estaCompletada = async function () {
   const registros = await mongoose.model('RegistroDiarioProgramacion').find({
     programacion: this._id,
-    estado: 'COMPLETADO',
+    estado:       'COMPLETADO',
   });
   return registros.length === 7;
 };
@@ -189,26 +189,6 @@ programacionSchema.methods.obtenerRegistrosDiarios = function () {
     .model('RegistroDiarioProgramacion')
     .find({ programacion: this._id })
     .sort({ fecha: 1 });
-};
-
-programacionSchema.methods.obtenerResumen = async function () {
-  const registros = await this.obtenerRegistrosDiarios();
-  return {
-    programacion_id:          this._id,
-    contrato:                 this.contrato,
-    fecha_inicial:            this.fecha_inicial,
-    fecha_final:              this.fecha_final,
-    semana:                   this.semana,
-    estado:                   this.estado,
-    cantidad_proyectada:      this.cantidad_proyectada,
-    cantidad_ejecutada_total: this.cantidad_ejecutada_total,
-    porcentaje_cumplimiento:  this.porcentaje_cumplimiento,
-    registros_diarios: registros.map(r => ({
-      fecha:              r.fecha,
-      cantidad_ejecutada: r.cantidad_ejecutada,
-      estado:             r.estado,
-    })),
-  };
 };
 
 module.exports = mongoose.model('Programacion', programacionSchema);
