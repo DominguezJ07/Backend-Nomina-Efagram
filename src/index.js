@@ -24,7 +24,7 @@ app.use(helmet());
 
 const allowedOrigins = (
   process.env.CORS_ORIGIN ||
-  'http://localhost:5173,http://localhost:5174,https://frontend-nomina-efagram-neon.vercel.app'
+  'http://localhost:5173,http://localhost:5174,https://https://frontend-nomina-efagram-626ihqjsl.vercel.app'
 )
   .split(',')
   .map(o => o.trim())

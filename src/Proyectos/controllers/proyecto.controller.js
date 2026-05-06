@@ -4,41 +4,105 @@
  *
  * ✅ Sin populate
  * ✅ Sin ObjectId en subdocumentos
- * ✅ Transformación con .map() antes de guardar
- * ✅ Sanitización completa del req.body
+ * ✅ Todos los arrays transformados con .map() antes de guardar
+ * ✅ Nunca se usa req.body directo
  */
 
 const Proyecto = require('../models/proyecto.model');
 const { asyncHandler, ApiError } = require('../../middlewares/errorHandler');
-const {
-  sanitizePersona,
-  sanitizeZona,
-  sanitizeClienteRef,
-  _str,
-  _num,
-} = require('../utils/sanitizer');
+const { sanitizePersona, sanitizeZona, sanitizeClienteRef, _str, _num } = require('../utils/sanitizer');
 
-// ── Normalizar actividades de intervención ────────────────────
-const normalizarActividades = (actividades_por_intervencion) => {
-  const tipos = ['mantenimiento', 'no_programadas', 'establecimiento'];
-  const result = {};
+// ── Transformación de actividades por intervención ────────────
+// ✅ .map() interno — nunca se guarda el array crudo
+const mapActividades = (arr) =>
+  (arr || []).map(a => ({
+    nombre:          _str(a.nombre,          ''),
+    precio_unitario: _num(a.precio_unitario,  0),
+    cantidad:        _num(a.cantidad,          0),
+    unidad:          _str(a.unidad, 'hectareas'),
+    estado:          _str(a.estado, 'Pendiente'),
+  }));
 
-  for (const tipo of tipos) {
-    const raw = actividades_por_intervencion?.[tipo];
-    // ✅ Transformación con .map() — nunca se guarda el array crudo
-    result[tipo] = Array.isArray(raw)
-      ? raw.map((act) => ({
-          nombre:          _str(act.nombre,          ''),
-          precio_unitario: _num(act.precio_unitario,  0),
-          cantidad:        _num(act.cantidad,          0),
-          unidad:          _str(act.unidad, 'hectareas'),
-          estado:          _str(act.estado, 'Pendiente'),
-        }))
-      : [];
-  }
+// ── Transformación central de req.body ────────────────────────
+// ✅ NUNCA se usa req.body directo — todo pasa por esta función
+const transformarBody = (body) => ({
+  codigo:      _str(body.codigo) ? _str(body.codigo).toUpperCase() : undefined,
+  nombre:      _str(body.nombre),
+  descripcion: _str(body.descripcion, undefined),
 
-  return result;
-};
+  // ✅ Cliente — objeto plano sanitizado
+  cliente: body.cliente
+    ? {
+        nombre: _str(body.cliente.nombre, null),
+        nit:    _str(body.cliente.nit,    ''),
+      }
+    : undefined,
+
+  // ✅ Zona — objeto plano sanitizado
+  zona: body.zona
+    ? {
+        nombre: _str(body.zona.nombre, null),
+        codigo: _str(body.zona.codigo, null),
+      }
+    : undefined,
+
+  // ✅ Responsable — objeto plano sanitizado
+  responsable: body.responsable
+    ? {
+        nombre:    _str(body.responsable.nombre,    null),
+        documento: _str(body.responsable.documento, null),
+        cargo:     _str(body.responsable.cargo,     null),
+      }
+    : null,
+
+  fecha_inicio:       body.fecha_inicio,
+  fecha_fin_estimada: body.fecha_fin_estimada || null,
+  fecha_fin_real:     body.fecha_fin_real     || null,
+  tipo_contrato:      body.tipo_contrato,
+  valor_contrato:     _num(body.valor_contrato, undefined),
+  avance:             _num(body.avance, 0),
+  observaciones:      _str(body.observaciones, undefined),
+  estado:             body.estado,
+
+  // ✅ Actividades por intervención — transformadas con .map()
+  actividades_por_intervencion: body.actividades_por_intervencion
+    ? {
+        mantenimiento:   mapActividades(body.actividades_por_intervencion.mantenimiento),
+        no_programadas:  mapActividades(body.actividades_por_intervencion.no_programadas),
+        establecimiento: mapActividades(body.actividades_por_intervencion.establecimiento),
+      }
+    : undefined,
+
+  // ✅ Arrays planos con .map()
+  fincas: (body.fincas || []).map(f => ({
+    nombre: _str(f.nombre, null),
+    codigo: _str(f.codigo, null),
+  })),
+
+  personal: (body.personal || []).map(p => ({
+    nombre:    _str(p.nombre,    null),
+    documento: _str(p.documento, null),
+  })),
+
+  zonas: (body.zonas || []).map(z => ({
+    nombre: _str(z.nombre, null),
+  })),
+
+  nucleos: (body.nucleos || []).map(n => ({
+    nombre: _str(n.nombre, null),
+  })),
+
+  actividades: (body.actividades || []).map(a => ({
+    actividad: {
+      nombre: _str(a.actividad?.nombre, null),
+    },
+    asignacion_subproyecto: {
+      nombre: _str(a.asignacion_subproyecto?.nombre, null),
+    },
+    cantidad:        _num(a.cantidad,        0),
+    precio_unitario: _num(a.precio_unitario, 0),
+  })),
+});
 
 // ── 1. GET TODOS ──────────────────────────────────────────────
 const getProyectos = asyncHandler(async (req, res) => {
@@ -47,7 +111,6 @@ const getProyectos = asyncHandler(async (req, res) => {
   if (estado) filter.estado = estado;
 
   const proyectos = await Proyecto.find(filter).sort({ createdAt: -1 });
-
   res.status(200).json({ success: true, count: proyectos.length, data: proyectos });
 });
 
@@ -55,7 +118,6 @@ const getProyectos = asyncHandler(async (req, res) => {
 const getProyecto = asyncHandler(async (req, res) => {
   const proyecto = await Proyecto.findById(req.params.id);
   if (!proyecto) throw new ApiError(404, 'Proyecto no encontrado');
-
   res.status(200).json({ success: true, data: proyecto });
 });
 
@@ -63,65 +125,18 @@ const getProyecto = asyncHandler(async (req, res) => {
 const getResumenProyecto = asyncHandler(async (req, res) => {
   const proyecto = await Proyecto.findById(req.params.id);
   if (!proyecto) throw new ApiError(404, 'Proyecto no encontrado');
-
   res.status(200).json({ success: true, data: proyecto });
 });
 
 // ── 4. CREAR ──────────────────────────────────────────────────
-/**
- * Body esperado:
- * {
- *   codigo:       "PRY-001",
- *   nombre:       "Proyecto Cacao Norte",
- *   cliente:      { nombre: "Agro S.A.", nit: "900123456-1" },
- *   zona:         { nombre: "Zona Norte", codigo: "Z01" },
- *   responsable:  { nombre: "Ana López", documento: "123456", cargo: "Jefe" },
- *   fecha_inicio: "2024-01-15",
- *   fecha_fin_estimada: "2024-12-31",
- *   tipo_contrato: "FIJO_TODO_COSTO",
- *   descripcion:  "...",
- *   actividades_por_intervencion: {
- *     mantenimiento:   [{ nombre, precio_unitario, cantidad, unidad }],
- *     no_programadas:  [],
- *     establecimiento: []
- *   }
- * }
- */
 const createProyecto = asyncHandler(async (req, res) => {
-  // ── Validaciones simples ──
-  if (!_str(req.body.codigo))       throw new ApiError(400, 'El código es obligatorio');
-  if (!_str(req.body.nombre))       throw new ApiError(400, 'El nombre es obligatorio');
-  if (!req.body.fecha_inicio)       throw new ApiError(400, 'La fecha de inicio es obligatoria');
+  // ✅ NUNCA req.body directo — pasa por transformarBody()
+  const data = transformarBody(req.body);
 
-  // ── Transformación completa — NO se usa req.body directo ──
-  const data = {
-    codigo:      _str(req.body.codigo).toUpperCase(),
-    nombre:      _str(req.body.nombre),
-    descripcion: _str(req.body.descripcion, undefined),
-
-    // ✅ Cliente — objeto plano sanitizado
-    cliente: sanitizeClienteRef(req.body.cliente, 'cliente'),
-
-    // ✅ Zona — objeto plano sanitizado (opcional)
-    zona: req.body.zona ? sanitizeZona(req.body.zona, 'zona') : undefined,
-
-    // ✅ Responsable — objeto plano sanitizado (opcional)
-    responsable: req.body.responsable
-      ? sanitizePersona(req.body.responsable, 'responsable')
-      : null,
-
-    fecha_inicio:       req.body.fecha_inicio,
-    fecha_fin_estimada: req.body.fecha_fin_estimada || null,
-    tipo_contrato:      req.body.tipo_contrato,
-    valor_contrato:     _num(req.body.valor_contrato, undefined),
-    avance:             _num(req.body.avance, 0),
-    observaciones:      _str(req.body.observaciones, undefined),
-
-    // ✅ Actividades — transformadas con .map() interno
-    actividades_por_intervencion: normalizarActividades(
-      req.body.actividades_por_intervencion
-    ),
-  };
+  if (!data.codigo)       throw new ApiError(400, 'El código es obligatorio');
+  if (!data.nombre)       throw new ApiError(400, 'El nombre es obligatorio');
+  if (!req.body.fecha_inicio) throw new ApiError(400, 'La fecha de inicio es obligatoria');
+  if (!data.cliente?.nombre)  throw new ApiError(400, 'El cliente (nombre) es obligatorio');
 
   const proyecto = await Proyecto.create(data);
 
@@ -137,43 +152,33 @@ const updateProyecto = asyncHandler(async (req, res) => {
   const proyecto = await Proyecto.findById(req.params.id);
   if (!proyecto) throw new ApiError(404, 'Proyecto no encontrado');
 
-  // ✅ Whitelist de campos escalares — no se hace Object.assign(req.body)
+  // ✅ NUNCA req.body directo — pasa por transformarBody()
+  const data = transformarBody(req.body);
+
+  // Aplicar solo los campos que vienen en el body
   const CAMPOS_ESCALARES = [
     'nombre', 'descripcion', 'fecha_inicio', 'fecha_fin_estimada',
-    'fecha_fin_real', 'tipo_contrato', 'valor_contrato', 'estado',
-    'avance', 'observaciones',
+    'fecha_fin_real', 'tipo_contrato', 'valor_contrato',
+    'estado', 'avance', 'observaciones',
   ];
-
   for (const campo of CAMPOS_ESCALARES) {
-    if (req.body[campo] !== undefined) {
-      proyecto[campo] = req.body[campo];
-    }
+    if (data[campo] !== undefined) proyecto[campo] = data[campo];
   }
 
-  // ✅ Objetos embebidos — sanitizados individualmente
-  if (req.body.cliente !== undefined) {
-    if (!req.body.cliente) throw new ApiError(400, 'El cliente no puede ser nulo');
-    proyecto.cliente = sanitizeClienteRef(req.body.cliente, 'cliente');
+  if (data.cliente     !== undefined) proyecto.cliente     = data.cliente;
+  if (data.zona        !== undefined) proyecto.zona        = data.zona;
+  if (data.responsable !== undefined) proyecto.responsable = data.responsable;
+
+  if (data.actividades_por_intervencion !== undefined) {
+    proyecto.actividades_por_intervencion = data.actividades_por_intervencion;
   }
 
-  if (req.body.zona !== undefined) {
-    proyecto.zona = req.body.zona
-      ? sanitizeZona(req.body.zona, 'zona')
-      : { nombre: null, codigo: null };
-  }
-
-  if (req.body.responsable !== undefined) {
-    proyecto.responsable = req.body.responsable
-      ? sanitizePersona(req.body.responsable, 'responsable')
-      : null;
-  }
-
-  // ✅ Arrays — transformados con .map() interno
-  if (req.body.actividades_por_intervencion !== undefined) {
-    proyecto.actividades_por_intervencion = normalizarActividades(
-      req.body.actividades_por_intervencion
-    );
-  }
+  // Arrays planos
+  if (req.body.fincas     !== undefined) proyecto.fincas     = data.fincas;
+  if (req.body.personal   !== undefined) proyecto.personal   = data.personal;
+  if (req.body.zonas      !== undefined) proyecto.zonas      = data.zonas;
+  if (req.body.nucleos    !== undefined) proyecto.nucleos    = data.nucleos;
+  if (req.body.actividades !== undefined) proyecto.actividades = data.actividades;
 
   await proyecto.save();
   res.status(200).json({
@@ -191,7 +196,7 @@ const deleteProyecto = asyncHandler(async (req, res) => {
   const PAL              = require('../models/proyectoActividadLote.model');
   const tieneActividades = await PAL.countDocuments({ proyecto: req.params.id });
   if (tieneActividades > 0) {
-    throw new ApiError(400, `No se puede eliminar el proyecto. Tiene ${tieneActividades} actividades asociadas.`);
+    throw new ApiError(400, `No se puede eliminar. Tiene ${tieneActividades} actividades asociadas.`);
   }
 
   await proyecto.deleteOne();
@@ -214,7 +219,6 @@ const cerrarProyecto = asyncHandler(async (req, res) => {
 const puedeObtenerProyecto = asyncHandler(async (req, res) => {
   const proyecto = await Proyecto.findById(req.params.id);
   if (!proyecto) throw new ApiError(404, 'Proyecto no encontrado');
-
   res.status(200).json({ success: true, puede_cerrar: true, data: proyecto });
 });
 
@@ -232,22 +236,22 @@ const actualizarPresupuestoAnual = asyncHandler(async (req, res) => {
   const proyecto = await Proyecto.findById(id);
   if (!proyecto) throw new ApiError(404, 'Proyecto no encontrado');
 
-  if (!año_fiscal || año_fiscal < 2020 || año_fiscal > 2100) throw new ApiError(400, 'El año fiscal es inválido');
-  if (cantidad_actividades_planeadas < 0) throw new ApiError(400, 'La cantidad de actividades no puede ser negativa');
-  if (monto_presupuestado < 0)            throw new ApiError(400, 'El monto presupuestado no puede ser negativo');
+  if (!año_fiscal || año_fiscal < 2020 || año_fiscal > 2100) throw new ApiError(400, 'Año fiscal inválido');
+  if (cantidad_actividades_planeadas < 0) throw new ApiError(400, 'La cantidad no puede ser negativa');
+  if (monto_presupuestado < 0)            throw new ApiError(400, 'El monto no puede ser negativo');
 
   if (presupuesto_por_intervencion) {
     const totalActs =
-      (_num(presupuesto_por_intervencion.mantenimiento?.cantidad_actividades)  ) +
-      (_num(presupuesto_por_intervencion.no_programadas?.cantidad_actividades) ) +
-      (_num(presupuesto_por_intervencion.establecimiento?.cantidad_actividades));
+      _num(presupuesto_por_intervencion.mantenimiento?.cantidad_actividades)  +
+      _num(presupuesto_por_intervencion.no_programadas?.cantidad_actividades) +
+      _num(presupuesto_por_intervencion.establecimiento?.cantidad_actividades);
     const totalMonto =
-      (_num(presupuesto_por_intervencion.mantenimiento?.monto_presupuestado)  ) +
-      (_num(presupuesto_por_intervencion.no_programadas?.monto_presupuestado) ) +
-      (_num(presupuesto_por_intervencion.establecimiento?.monto_presupuestado));
+      _num(presupuesto_por_intervencion.mantenimiento?.monto_presupuestado)  +
+      _num(presupuesto_por_intervencion.no_programadas?.monto_presupuestado) +
+      _num(presupuesto_por_intervencion.establecimiento?.monto_presupuestado);
 
     if (totalActs  > cantidad_actividades_planeadas) throw new ApiError(400, `Total actividades (${totalActs}) excede lo planeado`);
-    if (totalMonto > monto_presupuestado)             throw new ApiError(400, `Total presupuesto ($${totalMonto}) excede lo planeado`);
+    if (totalMonto > monto_presupuestado)             throw new ApiError(400, `Total presupuesto excede lo planeado`);
   }
 
   proyecto.presupuesto_anual = {
@@ -277,7 +281,7 @@ const actualizarPresupuestoAnual = asyncHandler(async (req, res) => {
   }
 
   await proyecto.save();
-  res.status(200).json({ success: true, message: 'Presupuesto anual actualizado correctamente', data: proyecto });
+  res.status(200).json({ success: true, message: 'Presupuesto actualizado correctamente', data: proyecto });
 });
 
 const obtenerPresupuestoAnual = asyncHandler(async (req, res) => {
@@ -301,20 +305,16 @@ const obtenerPresupuestoAnual = asyncHandler(async (req, res) => {
   });
 
   const palsConPrecios = await PAL.find({ proyecto: req.params.id }).select('_id cantidad_ejecutada');
-  const palIds         = palsConPrecios.map((p) => p._id);
+  const palIds         = palsConPrecios.map(p => p._id);
   const precios        = await PrecioNegociado.find({
     proyecto_actividad_lote: { $in: palIds },
     activo: true,
   }).select('proyecto_actividad_lote precio_acordado');
 
   let montoEjecutado = 0;
-  palsConPrecios.forEach((pal) => {
-    const precio = precios.find(
-      (p) => p.proyecto_actividad_lote.toString() === pal._id.toString()
-    );
-    if (precio && pal.cantidad_ejecutada) {
-      montoEjecutado += pal.cantidad_ejecutada * precio.precio_acordado;
-    }
+  palsConPrecios.forEach(pal => {
+    const precio = precios.find(p => p.proyecto_actividad_lote.toString() === pal._id.toString());
+    if (precio && pal.cantidad_ejecutada) montoEjecutado += pal.cantidad_ejecutada * precio.precio_acordado;
   });
 
   res.status(200).json({
@@ -329,16 +329,14 @@ const obtenerPresupuestoAnual = asyncHandler(async (req, res) => {
           ejecutadas:           actividadesEjecutadas,
           pendientes:           (proyecto.presupuesto_anual.cantidad_actividades_planeadas || 0) - actividadesEjecutadas,
           porcentaje_ejecucion: proyecto.presupuesto_anual.cantidad_actividades_planeadas
-            ? Number(((actividadesEjecutadas / proyecto.presupuesto_anual.cantidad_actividades_planeadas) * 100).toFixed(2))
-            : 0,
+            ? Number(((actividadesEjecutadas / proyecto.presupuesto_anual.cantidad_actividades_planeadas) * 100).toFixed(2)) : 0,
         },
         presupuesto: {
           planeado:             proyecto.presupuesto_anual.monto_presupuestado || 0,
           ejecutado:            Number(montoEjecutado.toFixed(2)),
           disponible:           Number(((proyecto.presupuesto_anual.monto_presupuestado || 0) - montoEjecutado).toFixed(2)),
           porcentaje_ejecucion: proyecto.presupuesto_anual.monto_presupuestado
-            ? Number(((montoEjecutado / proyecto.presupuesto_anual.monto_presupuestado) * 100).toFixed(2))
-            : 0,
+            ? Number(((montoEjecutado / proyecto.presupuesto_anual.monto_presupuestado) * 100).toFixed(2)) : 0,
         },
       },
     },
@@ -377,4 +375,4 @@ module.exports = {
   actualizarPresupuestoAnual,
   obtenerPresupuestoAnual,
   obtenerResumenPresupuestos,
-};
+};  

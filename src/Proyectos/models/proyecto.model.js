@@ -2,33 +2,14 @@
  * proyecto.model.js
  * Ruta: src/Proyectos/models/proyecto.model.js
  *
- * ✅ Sin ObjectId en subdocumentos
+ * ✅ Sin ObjectId
  * ✅ Sin ref
- * ✅ Sin populate
- * ✅ Objetos embebidos planos
+ * ✅ Sin _id en subdocumentos
+ * ✅ 100% objetos embebidos planos
  */
 
 const mongoose = require('mongoose');
 const { ESTADOS_PROYECTO, TIPOS_CONTRATO } = require('../../config/constants');
-const {
-  PersonaSchema,
-  ZonaSchema,
-  ClienteRefSchema,
-  ActividadSchema,
-} = require('../schemas/embeddedSchemas');
-
-// Subdocumento interno: actividad por tipo de intervención
-// (datos propios del proyecto, no vienen de API externa)
-const actividadIntervencionSchema = new mongoose.Schema(
-  {
-    nombre:          { type: String, trim: true, default: '' },
-    precio_unitario: { type: Number, default: 0, min: 0 },
-    cantidad:        { type: Number, default: 0, min: 0 },
-    unidad:          { type: String, default: 'hectareas', trim: true },
-    estado:          { type: String, default: 'Pendiente', trim: true },
-  },
-  { _id: false }   // ✅ Sin _id en subdocumento interno
-);
 
 const proyectoSchema = new mongoose.Schema(
   {
@@ -85,10 +66,35 @@ const proyectoSchema = new mongoose.Schema(
       },
     },
 
+    // ✅ Actividades por intervención — array de objetos planos
     actividades_por_intervencion: {
-      mantenimiento:   { type: [actividadIntervencionSchema], default: [] },
-      no_programadas:  { type: [actividadIntervencionSchema], default: [] },
-      establecimiento: { type: [actividadIntervencionSchema], default: [] },
+      mantenimiento: [
+        {
+          nombre:          { type: String, trim: true, default: '' },
+          precio_unitario: { type: Number, default: 0, min: 0 },
+          cantidad:        { type: Number, default: 0, min: 0 },
+          unidad:          { type: String, default: 'hectareas', trim: true },
+          estado:          { type: String, default: 'Pendiente', trim: true },
+        },
+      ],
+      no_programadas: [
+        {
+          nombre:          { type: String, trim: true, default: '' },
+          precio_unitario: { type: Number, default: 0, min: 0 },
+          cantidad:        { type: Number, default: 0, min: 0 },
+          unidad:          { type: String, default: 'hectareas', trim: true },
+          estado:          { type: String, default: 'Pendiente', trim: true },
+        },
+      ],
+      establecimiento: [
+        {
+          nombre:          { type: String, trim: true, default: '' },
+          precio_unitario: { type: Number, default: 0, min: 0 },
+          cantidad:        { type: Number, default: 0, min: 0 },
+          unidad:          { type: String, default: 'hectareas', trim: true },
+          estado:          { type: String, default: 'Pendiente', trim: true },
+        },
+      ],
     },
 
     estado: {

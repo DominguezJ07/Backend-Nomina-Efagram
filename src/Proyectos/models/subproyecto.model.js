@@ -2,10 +2,10 @@
  * subproyecto.model.js
  * Ruta: src/Proyectos/models/subproyecto.model.js
  *
- * ✅ Sin ObjectId en subdocumentos
+ * ✅ Sin ObjectId
  * ✅ Sin ref
- * ✅ Sin populate
- * ✅ Objetos embebidos planos
+ * ✅ Sin _id en subdocumentos
+ * ✅ 100% objetos embebidos planos
  */
 
 const mongoose = require('mongoose');
@@ -25,51 +25,53 @@ const subproyectoSchema = new mongoose.Schema(
       trim:     true,
     },
 
-    // ✅ Proyecto como objeto plano embebido — sin ObjectId, sin ref
+    // ✅ Proyecto como objeto plano — sin ObjectId, sin ref
     proyecto: {
-      codigo: { type: String, required: true, trim: true },
-      nombre: { type: String, trim: true, default: '' },
+      codigo: { type: String, trim: true, default: null },
+      nombre: { type: String, trim: true, default: null },
     },
 
-    // ✅ Núcleos — array de objetos planos
+    // ✅ Núcleos — array de objetos planos sin _id
     nucleos: [
       {
-        _id:    false,
         nombre: { type: String, trim: true, default: null },
       },
     ],
 
-    // ✅ Cuadrillas — array de objetos planos
+    // ✅ Cuadrillas — array de objetos planos sin _id
     cuadrillas: [
       {
-        _id:    false,
         nombre: { type: String, trim: true, default: null },
         codigo: { type: String, trim: true, default: null },
       },
     ],
 
-    // ✅ Personal — array de objetos planos
+    // ✅ Personal — array de objetos planos sin _id
     personal: [
       {
-        _id:       false,
         nombre:    { type: String, trim: true, default: null },
         documento: { type: String, trim: true, default: null },
       },
     ],
 
-    // ✅ Fincas — array de objetos planos
+    // ✅ Fincas — array de objetos planos sin _id
     fincas: [
       {
-        _id:    false,
         nombre: { type: String, trim: true, default: null },
         codigo: { type: String, trim: true, default: null },
       },
     ],
 
-    // ✅ Actividades — array de objetos planos
+    // ✅ Zonas — array de objetos planos sin _id
+    zonas: [
+      {
+        nombre: { type: String, trim: true, default: null },
+      },
+    ],
+
+    // ✅ Actividades — array de objetos planos sin _id
     actividades: [
       {
-        _id: false,
         actividad: {
           nombre: { type: String, trim: true, default: null },
         },

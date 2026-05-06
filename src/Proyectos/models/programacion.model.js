@@ -5,23 +5,17 @@
  * ✅ Sin ObjectId en subdocumentos
  * ✅ Sin ref
  * ✅ Sin populate
- * ✅ Objetos embebidos planos
+ * ✅ Arrays de objetos embebidos planos
  */
 
 const mongoose = require('mongoose');
-const {
-  PersonaSchema,
-  FincaSchema,
-  LoteSchema,
-  ContratoRefSchema,
-} = require('../schemas/embeddedSchemas');
 
 const programacionSchema = new mongoose.Schema(
   {
     // ✅ Contrato como objeto plano embebido
     contrato: {
-      type:     ContratoRefSchema,
-      required: [true, 'El contrato es obligatorio'],
+      codigo: { type: String, trim: true, default: null },
+      nombre: { type: String, trim: true, default: null },
     },
 
     fecha_inicial: {
@@ -54,24 +48,65 @@ const programacionSchema = new mongoose.Schema(
       min:     [0, 'El valor proyectado debe ser mayor o igual a 0'],
     },
 
-    // ✅ Actividad como objeto plano embebido
+    // ✅ Actividad simple (un solo objeto plano)
     actividad: {
       nombre: { type: String, trim: true, default: null },
       codigo: { type: String, trim: true, default: '' },
       unidad: { type: String, trim: true, default: 'hectareas' },
     },
 
-    // ✅ Finca como objeto plano embebido
+    // ✅ Finca simple (un solo objeto plano)
     finca: {
-      type:     FincaSchema,
-      required: [true, 'La finca es obligatoria'],
+      nombre: { type: String, trim: true, default: null },
+      codigo: { type: String, trim: true, default: '' },
     },
 
-    // ✅ Lote como objeto plano embebido
+    // ✅ Lote simple (un solo objeto plano)
     lote: {
-      type:     LoteSchema,
-      required: [true, 'El lote es obligatorio'],
+      nombre: { type: String, trim: true, default: null },
+      codigo: { type: String, trim: true, default: '' },
     },
+
+    // ✅ Arrays de objetos planos — sin _id
+    fincas: [
+      {
+        nombre: { type: String, trim: true, default: null },
+        codigo: { type: String, trim: true, default: null },
+      },
+    ],
+
+    personal: [
+      {
+        nombre:    { type: String, trim: true, default: null },
+        documento: { type: String, trim: true, default: null },
+      },
+    ],
+
+    zonas: [
+      {
+        nombre: { type: String, trim: true, default: null },
+      },
+    ],
+
+    nucleos: [
+      {
+        nombre: { type: String, trim: true, default: null },
+      },
+    ],
+
+    // ✅ Actividades (array) con estructura obligatoria
+    actividades: [
+      {
+        actividad: {
+          nombre: { type: String, trim: true, default: null },
+        },
+        asignacion_subproyecto: {
+          nombre: { type: String, trim: true, default: null },
+        },
+        cantidad:        { type: Number, default: 0 },
+        precio_unitario: { type: Number, default: 0 },
+      },
+    ],
 
     cantidad_ejecutada_total: {
       type:    Number,
@@ -88,14 +123,14 @@ const programacionSchema = new mongoose.Schema(
 
     // ✅ Persona que creó — objeto plano embebido
     creado_por: {
-      type:    PersonaSchema,
-      default: null,
+      nombre:    { type: String, trim: true, default: null },
+      documento: { type: String, trim: true, default: null },
     },
 
     // ✅ Persona que actualizó — objeto plano embebido
     actualizado_por: {
-      type:    PersonaSchema,
-      default: null,
+      nombre:    { type: String, trim: true, default: null },
+      documento: { type: String, trim: true, default: null },
     },
 
     observaciones: {
@@ -153,7 +188,7 @@ programacionSchema.pre('save', async function () {
 
 // ── PRE-SAVE: Validar duplicado ───────────────────────────────
 programacionSchema.pre('save', async function () {
-  if (this.isNew) {
+  if (this.isNew && this.contrato?.codigo) {
     const existente = await mongoose.model('Programacion').findOne({
       'contrato.codigo': this.contrato.codigo,
       fecha_inicial:     this.fecha_inicial,

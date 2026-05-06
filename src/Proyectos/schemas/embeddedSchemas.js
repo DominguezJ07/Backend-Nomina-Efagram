@@ -2,70 +2,63 @@
  * embeddedSchemas.js
  * Ruta: src/Proyectos/schemas/embeddedSchemas.js
  *
- * Estructuras planas reutilizables para objetos embebidos.
+ * ✅ Objetos JS planos — sin new Schema()
  * ✅ Sin _id
  * ✅ Sin ObjectId
  * ✅ Sin ref
- * ✅ Solo datos planos
+ * ✅ Nombres limpios — sin sufijo "Ref"
  */
 
-// ── PERSONA ──────────────────────────────────────────────────
 const PersonaSchema = {
-  nombre:    { type: String, trim: true, default: null },
-  documento: { type: String, trim: true, default: null },
+  nombre:    String,
+  documento: String,
 };
 
-// ── ZONA ─────────────────────────────────────────────────────
 const ZonaSchema = {
-  nombre: { type: String, trim: true, default: null },
-  codigo: { type: String, trim: true, default: null },
+  nombre: String,
+  codigo: String,
 };
 
-// ── NUCLEO ───────────────────────────────────────────────────
 const NucleoSchema = {
-  nombre: { type: String, trim: true, default: null },
+  nombre: String,
 };
 
-// ── FINCA ────────────────────────────────────────────────────
 const FincaSchema = {
-  nombre: { type: String, required: true, trim: true },
-  codigo: { type: String, required: true, trim: true },
+  nombre: String,
+  codigo: String,
 };
 
-// ── LOTE ─────────────────────────────────────────────────────
 const LoteSchema = {
-  nombre: { type: String, required: true, trim: true },
-  codigo: { type: String, trim: true, default: '' },
+  nombre: String,
+  codigo: String,
 };
 
-// ── ACTIVIDAD ────────────────────────────────────────────────
 const ActividadSchema = {
   actividad: {
-    nombre: { type: String, trim: true, default: null },
+    nombre: String,
   },
   asignacion_subproyecto: {
-    nombre: { type: String, trim: true, default: null },
+    nombre: String,
   },
-  cantidad:        { type: Number, default: 0 },
-  precio_unitario: { type: Number, default: 0 },
+  cantidad:        Number,
+  precio_unitario: Number,
 };
 
-// ── CUADRILLA ────────────────────────────────────────────────
 const CuadrillaSchema = {
-  nombre: { type: String, trim: true, default: null },
-  codigo: { type: String, trim: true, default: null },
+  nombre: String,
+  codigo: String,
 };
 
-// ── CONTRATO REF ─────────────────────────────────────────────
-const ContratoRefSchema = {
-  codigo: { type: String, required: true, trim: true },
-  nombre: { type: String, trim: true, default: '' },
+// ✅ Renombrado: ContratoRefSchema → ContratoSchema
+const ContratoSchema = {
+  codigo: String,
+  nombre: String,
 };
 
-// ── CLIENTE REF ──────────────────────────────────────────────
-const ClienteRefSchema = {
-  nombre: { type: String, required: true, trim: true },
-  nit:    { type: String, trim: true, default: '' },
+// ✅ Renombrado: ClienteRefSchema → ClienteSchema
+const ClienteSchema = {
+  nombre: String,
+  nit:    String,
 };
 
 module.exports = {
@@ -76,6 +69,6 @@ module.exports = {
   LoteSchema,
   ActividadSchema,
   CuadrillaSchema,
-  ContratoRefSchema,
-  ClienteRefSchema,
+  ContratoSchema,
+  ClienteSchema,
 };
