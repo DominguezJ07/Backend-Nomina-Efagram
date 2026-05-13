@@ -27,10 +27,11 @@ const proyectoSchema = new mongoose.Schema(
     },
     descripcion: { type: String, trim: true },
 
-    // ✅ Cliente como objeto plano embebido
+    // ✅ Cliente como referencia ObjectId
     cliente: {
-      nombre: { type: String, required: true, trim: true },
-      nit:    { type: String, trim: true, default: '' },
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Cliente',
+      required: [true, 'El cliente es obligatorio'],
     },
 
     // ✅ Zona como objeto plano embebido

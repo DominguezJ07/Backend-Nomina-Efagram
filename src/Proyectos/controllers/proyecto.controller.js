@@ -9,6 +9,7 @@
  */
 
 const Proyecto = require('../models/proyecto.model');
+const mongoose = require('mongoose');
 const { asyncHandler, ApiError } = require('../../middlewares/errorHandler');
 const { sanitizePersona, sanitizeZona, sanitizeClienteRef, _str, _num } = require('../utils/sanitizer');
 
@@ -23,6 +24,22 @@ const mapActividades = (arr) =>
     estado:          _str(a.estado, 'Pendiente'),
   }));
 
+// ── Helper para obtener ObjectId válido ──────────────────────
+const getMongoId = (value) => {
+  if (!value) return undefined;
+
+  if (typeof value === 'string') {
+    return mongoose.Types.ObjectId.isValid(value) ? value : undefined;
+  }
+
+  if (typeof value === 'object') {
+    const id = value._id || value.id || value.value;
+    return mongoose.Types.ObjectId.isValid(id) ? id : undefined;
+  }
+
+  return undefined;
+};
+
 // ── Transformación central de req.body ────────────────────────
 // ✅ NUNCA se usa req.body directo — todo pasa por esta función
 const transformarBody = (body) => ({
@@ -30,13 +47,8 @@ const transformarBody = (body) => ({
   nombre:      _str(body.nombre),
   descripcion: _str(body.descripcion, undefined),
 
-  // ✅ Cliente — objeto plano sanitizado
-  cliente: body.cliente
-    ? {
-        nombre: _str(body.cliente.nombre, null),
-        nit:    _str(body.cliente.nit,    ''),
-      }
-    : undefined,
+  // ✅ Cliente — referencia ObjectId
+  cliente: getMongoId(body.cliente),
 
   // ✅ Zona — objeto plano sanitizado
   zona: body.zona
@@ -110,20 +122,24 @@ const getProyectos = asyncHandler(async (req, res) => {
   const filter = {};
   if (estado) filter.estado = estado;
 
-  const proyectos = await Proyecto.find(filter).sort({ createdAt: -1 });
+  const proyectos = await Proyecto.find(filter)
+    .populate('cliente', 'codigo nit razon_social nombre_comercial activo')
+    .sort({ createdAt: -1 });
   res.status(200).json({ success: true, count: proyectos.length, data: proyectos });
 });
 
 // ── 2. GET UNO ────────────────────────────────────────────────
 const getProyecto = asyncHandler(async (req, res) => {
-  const proyecto = await Proyecto.findById(req.params.id);
+  const proyecto = await Proyecto.findById(req.params.id)
+    .populate('cliente', 'codigo nit razon_social nombre_comercial activo');
   if (!proyecto) throw new ApiError(404, 'Proyecto no encontrado');
   res.status(200).json({ success: true, data: proyecto });
 });
 
 // ── 3. RESUMEN ────────────────────────────────────────────────
 const getResumenProyecto = asyncHandler(async (req, res) => {
-  const proyecto = await Proyecto.findById(req.params.id);
+  const proyecto = await Proyecto.findById(req.params.id)
+    .populate('cliente', 'codigo nit razon_social nombre_comercial activo');
   if (!proyecto) throw new ApiError(404, 'Proyecto no encontrado');
   res.status(200).json({ success: true, data: proyecto });
 });
@@ -133,17 +149,31 @@ const createProyecto = asyncHandler(async (req, res) => {
   // ✅ NUNCA req.body directo — pasa por transformarBody()
   const data = transformarBody(req.body);
 
-  if (!data.codigo)       throw new ApiError(400, 'El código es obligatorio');
-  if (!data.nombre)       throw new ApiError(400, 'El nombre es obligatorio');
-  if (!req.body.fecha_inicio) throw new ApiError(400, 'La fecha de inicio es obligatoria');
-  if (!data.cliente?.nombre)  throw new ApiError(400, 'El cliente (nombre) es obligatorio');
+  if (!data.codigo) {
+    throw new ApiError(400, 'El código es obligatorio');
+  }
+
+  if (!data.nombre) {
+    throw new ApiError(400, 'El nombre es obligatorio');
+  }
+
+  if (!data.fecha_inicio) {
+    throw new ApiError(400, 'La fecha de inicio es obligatoria');
+  }
+
+  if (!data.cliente) {
+    throw new ApiError(400, 'El cliente es obligatorio');
+  }
 
   const proyecto = await Proyecto.create(data);
+
+  const proyectoPopulado = await Proyecto.findById(proyecto._id)
+    .populate('cliente', 'codigo nit razon_social nombre_comercial activo');
 
   res.status(201).json({
     success: true,
     message: 'Proyecto creado exitosamente',
-    data:    proyecto,
+    data: proyectoPopulado,
   });
 });
 
@@ -181,10 +211,14 @@ const updateProyecto = asyncHandler(async (req, res) => {
   if (req.body.actividades !== undefined) proyecto.actividades = data.actividades;
 
   await proyecto.save();
+
+  const proyectoPopulado = await Proyecto.findById(proyecto._id)
+    .populate('cliente', 'codigo nit razon_social nombre_comercial activo');
+
   res.status(200).json({
     success: true,
     message: 'Proyecto actualizado exitosamente',
-    data:    proyecto,
+    data: proyectoPopulado,
   });
 });
 
