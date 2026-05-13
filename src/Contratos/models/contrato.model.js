@@ -64,9 +64,21 @@ const contratoSchema = new mongoose.Schema(
     },
 
     finca: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Finca',
-      required: [true, 'La finca es obligatoria'],
+      id: {
+        type: String,
+        trim: true,
+        default: null,
+      },
+      codigo: {
+        type: String,
+        trim: true,
+        default: null,
+      },
+      nombre: {
+        type: String,
+        required: [true, 'La finca es obligatoria'],
+        trim: true,
+      },
     },
 
     // ✅ CAMBIO: lotes ahora son subdocumentos embebidos, no referencias a la colección Lote territorial
@@ -138,7 +150,8 @@ contratoSchema.pre('save', function () {
 });
 
 contratoSchema.index({ subproyecto: 1 });
-contratoSchema.index({ finca: 1 });
+contratoSchema.index({ 'finca.id': 1 });
+contratoSchema.index({ 'finca.codigo': 1 });
 contratoSchema.index({ cuadrillas: 1 });
 contratoSchema.index({ estado: 1 });
 contratoSchema.index({ fecha_inicio: 1 });

@@ -11,6 +11,8 @@
 const mongoose                   = require('mongoose');
 const Programacion               = require('../models/programacion.model');
 const RegistroDiarioProgramacion = require('../models/registroDiarioProgramacion.model');
+const Contrato                   = require('../../Contratos/models/contrato.model');
+const { getMongoId }             = require('../utils/objectId.helper');
 const {
   sanitizeContratoRef,
   sanitizeFinca,
@@ -131,12 +133,35 @@ exports.getProgramacionById = async (req, res) => {
 exports.createProgramacion = async (req, res) => {
   if (!checkDB(res)) return;
   try {
+    const contratoId = getMongoId(req.body.contrato_id || req.body.contrato);
+
+    if (!contratoId) {
+      return res.status(400).json({ success: false, message: 'El contrato es obligatorio' });
+    }
+
+    const contrato = await Contrato.findById(contratoId)
+      .populate('subproyecto', 'codigo nombre')
+      .populate('actividades.actividad', 'codigo nombre unidad_medida')
+      .lean();
+
+    if (!contrato) {
+      return res.status(404).json({ success: false, message: 'Contrato no encontrado' });
+    }
+
     // ── Transformación y sanitización — NO se usa req.body directo ──
     const data = {
-      // Objetos planos embebidos
-      contrato:  sanitizeContratoRef(req.body.contrato,  'contrato'),
-      finca:     sanitizeFinca(req.body.finca,           'finca'),
-      lote:      sanitizeLote(req.body.lote,             'lote'),
+      // Snapshot del contrato
+      contrato: {
+        codigo: contrato.codigo || null,
+        nombre: contrato.subproyecto?.nombre || contrato.codigo || null,
+      },
+
+      // Snapshot de la finca
+      finca: {
+        id: contrato.finca?.id || null,
+        codigo: contrato.finca?.codigo || null,
+        nombre: contrato.finca?.nombre || null,
+      },
 
       // Actividad con .map() si viene como array, o como objeto simple
       actividad: {
@@ -144,6 +169,8 @@ exports.createProgramacion = async (req, res) => {
         codigo: _str(req.body.actividad?.codigo, ''),
         unidad: _str(req.body.actividad?.unidad, 'hectareas'),
       },
+
+      lote:      sanitizeLote(req.body.lote,             'lote'),
 
       fecha_inicial:       req.body.fecha_inicial,
       cantidad_proyectada: _num(req.body.cantidad_proyectada, 1),

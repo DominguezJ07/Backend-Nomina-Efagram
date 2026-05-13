@@ -2,6 +2,7 @@ const Subproyecto = require('../models/subproyecto.model');
 const Proyecto = require('../models/proyecto.model');
 const Nucleo = require('../../Territorial/models/nucleo.model');
 const { asyncHandler, ApiError } = require('../../middlewares/errorHandler');
+const { getMongoId, idsEqual } = require('../utils/objectId.helper');
 const RegistroDiario = require('../../Ejecucion/models/registroDiario.model');
 const HorasNoTrabajadas = require('../../HorasNoTrabajadas/models/HorasNoTrabajadas.model');
 
@@ -12,14 +13,17 @@ const getSubproyectos = asyncHandler(async (req, res) => {
   const { proyecto, estado } = req.query;
 
   const filter = {};
-  if (proyecto) filter.proyecto = proyecto;
+  if (proyecto) {
+    const proyectoId = getMongoId(proyecto);
+    if (proyectoId) {
+      filter.proyecto_id = proyectoId;
+    } else {
+      filter['proyecto.codigo'] = proyecto;
+    }
+  }
   if (estado) filter.estado = estado;
 
   const subproyectos = await Subproyecto.find(filter)
-    .populate('proyecto', 'codigo nombre zona')
-    .populate('nucleos', 'codigo nombre')
-    .populate('supervisor', 'nombres apellidos')
-    .populate('cliente', 'nombre razon_social')
     .sort({ createdAt: -1 });
 
   // 🔥 NUEVO: Agregar horas trabajadas y no trabajadas
@@ -75,11 +79,7 @@ const getSubproyectos = asyncHandler(async (req, res) => {
  * GET /api/v1/subproyectos/:id
  */
 const getSubproyecto = asyncHandler(async (req, res) => {
-  const sub = await Subproyecto.findById(req.params.id)
-    .populate({ path: 'proyecto', populate: { path: 'zona', select: 'nombre codigo' } })
-    .populate('nucleos', 'codigo nombre zona')
-    .populate('supervisor', 'nombres apellidos cargo')
-    .populate('cliente', 'nombre razon_social');
+  const sub = await Subproyecto.findById(req.params.id);
 
   if (!sub) throw new ApiError(404, 'Subproyecto no encontrado');
 
@@ -91,45 +91,107 @@ const getSubproyecto = asyncHandler(async (req, res) => {
  */
 const createSubproyecto = asyncHandler(async (req, res) => {
   const {
-    codigo, nombre, proyecto: proyectoId, nucleos,
-    supervisor, cliente, fecha_inicio, fecha_fin_estimada, observaciones,
+    codigo,
+    nombre,
+    proyecto: proyectoId,
+    nucleos = [],
+    supervisor,
+    cliente,
+    fecha_inicio,
+    fecha_fin_estimada,
+    observaciones,
   } = req.body;
 
-  const proyecto = await Proyecto.findById(proyectoId).populate('zona');
-  if (!proyecto) throw new ApiError(404, 'Proyecto no encontrado');
-  if (!proyecto.zona) throw new ApiError(400, 'El proyecto no tiene zona asignada');
+  if (!codigo || !String(codigo).trim()) {
+    throw new ApiError(400, 'El código es obligatorio');
+  }
 
-  if (nucleos && nucleos.length > 0) {
-    const nucleosDocs = await Nucleo.find({ _id: { $in: nucleos } });
-    for (const nucleo of nucleosDocs) {
-      if (nucleo.zona.toString() !== proyecto.zona._id.toString() &&
-          nucleo.zona.toString() !== proyecto.zona.toString()) {
-        throw new ApiError(
-          400,
-          `El núcleo "${nucleo.nombre}" no pertenece a la zona del proyecto`
-        );
+  if (!nombre || !String(nombre).trim()) {
+    throw new ApiError(400, 'El nombre es obligatorio');
+  }
+
+  const proyectoMongoId = getMongoId(proyectoId);
+
+  if (!proyectoMongoId) {
+    throw new ApiError(400, 'Proyecto inválido');
+  }
+
+  const proyecto = await Proyecto.findById(proyectoMongoId).lean();
+
+  if (!proyecto) {
+    throw new ApiError(404, 'Proyecto no encontrado');
+  }
+
+  const zonaProyectoId = getMongoId(proyecto.zona);
+
+  let nucleosDocs = [];
+
+  if (Array.isArray(nucleos) && nucleos.length > 0) {
+    const nucleosIds = nucleos.map(getMongoId).filter(Boolean);
+
+    nucleosDocs = await Nucleo.find({ _id: { $in: nucleosIds } }).lean();
+
+    if (nucleosDocs.length !== nucleosIds.length) {
+      throw new ApiError(400, 'Uno o más núcleos no existen');
+    }
+
+    if (zonaProyectoId) {
+      for (const nucleo of nucleosDocs) {
+        const zonaNucleoId = getMongoId(nucleo.zona);
+
+        if (zonaNucleoId && !idsEqual(zonaNucleoId, zonaProyectoId)) {
+          throw new ApiError(
+            400,
+            `El núcleo "${nucleo.nombre}" no pertenece a la zona del proyecto`
+          );
+        }
       }
     }
   }
 
   const sub = await Subproyecto.create({
-    codigo: codigo.trim().toUpperCase(),
-    nombre: nombre.trim(),
-    proyecto: proyectoId,
-    nucleos: nucleos || [],
-    supervisor: supervisor || null,
-    cliente: cliente || null,
+    codigo: String(codigo).trim().toUpperCase(),
+    nombre: String(nombre).trim(),
+
+    proyecto_id: proyecto._id,
+
+    proyecto: {
+      codigo: proyecto.codigo || null,
+      nombre: proyecto.nombre || null,
+    },
+
+    nucleo_ids: nucleosDocs.map((n) => n._id),
+
+    nucleos: nucleosDocs.map((n) => ({
+      id: String(n._id),
+      codigo: n.codigo || null,
+      nombre: n.nombre || null,
+    })),
+
+    supervisor: supervisor && typeof supervisor === 'object'
+      ? {
+          nombre: supervisor.nombre || supervisor.name || supervisor.nombres || null,
+          documento: supervisor.documento || supervisor.cc || supervisor.num_doc || null,
+        }
+      : {
+          nombre: null,
+          documento: supervisor ? String(supervisor) : null,
+        },
+
+    cliente: cliente && typeof cliente === 'object'
+      ? {
+          nombre: cliente.nombre || cliente.razon_social || cliente.nombre_comercial || null,
+          nit: cliente.nit || null,
+        }
+      : {
+          nombre: null,
+          nit: null,
+        },
+
     fecha_inicio: fecha_inicio || null,
     fecha_fin_estimada: fecha_fin_estimada || null,
     observaciones,
   });
-
-  await sub.populate([
-    { path: 'proyecto', select: 'codigo nombre' },
-    { path: 'nucleos', select: 'codigo nombre' },
-    { path: 'supervisor', select: 'nombres apellidos' },
-    { path: 'cliente', select: 'nombre razon_social' },
-  ]);
 
   res.status(201).json({
     success: true,

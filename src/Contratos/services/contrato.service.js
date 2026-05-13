@@ -20,6 +20,36 @@ const validateFinca = async (fincaId) => {
   return finca;
 };
 
+const normalizarFincaExterna = (finca) => {
+  if (!finca) {
+    throw new ApiError(400, 'La finca es obligatoria');
+  }
+
+  if (typeof finca === 'string') {
+    throw new ApiError(
+      400,
+      'La finca debe enviarse como objeto porque proviene de EfaStack'
+    );
+  }
+
+  const nombre =
+    finca.nombre ||
+    finca.name ||
+    finca.nombre_finca ||
+    finca.descripcion ||
+    '';
+
+  if (!String(nombre).trim()) {
+    throw new ApiError(400, 'La finca debe tener nombre');
+  }
+
+  return {
+    id: String(finca._id || finca.id || finca.value || finca.codigo || ''),
+    codigo: String(finca.codigo || finca.code || finca.cod_finca || '').trim(),
+    nombre: String(nombre).trim(),
+  };
+};
+
 // ✅ NUEVO: Normaliza los lotes embebidos generando códigos correlativos automáticos
 // Recibe: [{ nombre: 'Lote Norte' }, { nombre: 'Lote Sur' }]
 // Retorna: [{ codigo: 1, nombre: 'Lote Norte' }, { codigo: 2, nombre: 'Lote Sur' }]
@@ -171,8 +201,8 @@ const validateCodigoUnico = async (codigo, excludeId = null) => {
 
 module.exports = {
   validateSubproyecto,
-  validateFinca,
-  normalizarLotes,        // ✅ exportada en lugar de validateLotes
+  normalizarFincaExterna,
+  normalizarLotes,
   validateActividadesConCantidad,
   validateActividadesConCantidadUpdate,
   validateCuadrillas,

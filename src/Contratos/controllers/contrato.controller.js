@@ -5,7 +5,6 @@ const { asyncHandler, ApiError } = require('../../middlewares/errorHandler');
 
 const POPULATE_CONTRATO = [
   { path: 'subproyecto', select: 'codigo nombre estado' },
-  { path: 'finca', select: 'codigo nombre' },
   { path: 'actividades.actividad', select: 'codigo nombre categoria unidad_medida' },
   {
     path: 'cuadrillas',
@@ -63,7 +62,7 @@ const createContrato = asyncHandler(async (req, res) => {
 
   await contratoService.validateCodigoUnico(codigo);
   await contratoService.validateSubproyecto(subproyecto);
-  await contratoService.validateFinca(finca);
+  const fincaNormalizada = contratoService.normalizarFincaExterna(finca);
 
   const lotesNormalizados = contratoService.normalizarLotes(lotes);
 
@@ -82,7 +81,7 @@ const createContrato = asyncHandler(async (req, res) => {
   const contrato = await Contrato.create({
     codigo,
     subproyecto,
-    finca,
+    finca: fincaNormalizada,
     lotes: lotesNormalizados,
     actividades: actividadesDoc,
     cuadrillas,
@@ -126,9 +125,8 @@ const updateContrato = asyncHandler(async (req, res) => {
     contrato.subproyecto = subproyecto;
   }
 
-  if (finca && finca !== contrato.finca.toString()) {
-    await contratoService.validateFinca(finca);
-    contrato.finca = finca;
+  if (finca) {
+    contrato.finca = contratoService.normalizarFincaExterna(finca);
   }
 
   if (lotes) {

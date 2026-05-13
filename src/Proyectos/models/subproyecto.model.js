@@ -25,15 +25,32 @@ const subproyectoSchema = new mongoose.Schema(
       trim:     true,
     },
 
-    // ✅ Proyecto como objeto plano — sin ObjectId, sin ref
+    // ✅ Proyecto — referencia ObjectId + snapshot
+    proyecto_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Proyecto',
+      required: [true, 'El proyecto es obligatorio'],
+      index: true,
+    },
+
     proyecto: {
       codigo: { type: String, trim: true, default: null },
       nombre: { type: String, trim: true, default: null },
     },
 
-    // ✅ Núcleos — array de objetos planos sin _id
+    // ✅ Núcleos — referencias ObjectId + snapshots
+    nucleo_ids: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Nucleo',
+      },
+    ],
+
     nucleos: [
       {
+        _id: false,
+        id: { type: String, trim: true, default: null },
+        codigo: { type: String, trim: true, default: null },
         nombre: { type: String, trim: true, default: null },
       },
     ],
@@ -110,6 +127,8 @@ const subproyectoSchema = new mongoose.Schema(
 );
 
 // ── ÍNDICES ───────────────────────────────────────────────────
+subproyectoSchema.index({ proyecto_id: 1 });
+subproyectoSchema.index({ proyecto_id: 1, estado: 1 });
 subproyectoSchema.index({ 'proyecto.codigo': 1 });
 subproyectoSchema.index({ 'proyecto.codigo': 1, estado: 1 });
 
