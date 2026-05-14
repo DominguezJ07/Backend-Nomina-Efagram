@@ -11,7 +11,7 @@
 const Proyecto = require('../models/proyecto.model');
 const mongoose = require('mongoose');
 const { asyncHandler, ApiError } = require('../../middlewares/errorHandler');
-const { sanitizePersona, sanitizeZona, sanitizeClienteRef, _str, _num } = require('../utils/sanitizer');
+const { sanitizePersona, sanitizeZona, sanitizeClienteRef, sanitizeFincas, sanitizePersonas, sanitizeNucleos, _str, _num } = require('../utils/sanitizer');
 
 // ── Transformación de actividades por intervención ────────────
 // ✅ .map() interno — nunca se guarda el array crudo
@@ -86,23 +86,16 @@ const transformarBody = (body) => ({
     : undefined,
 
   // ✅ Arrays planos con .map()
-  fincas: (body.fincas || []).map(f => ({
-    nombre: _str(f.nombre, null),
-    codigo: _str(f.codigo, null),
-  })),
+  fincas: body.fincas ? sanitizeFincas(body.fincas) : undefined,
 
-  personal: (body.personal || []).map(p => ({
-    nombre:    _str(p.nombre,    null),
-    documento: _str(p.documento, null),
-  })),
+  personal: body.personal ? sanitizePersonas(body.personal) : undefined,
 
-  zonas: (body.zonas || []).map(z => ({
-    nombre: _str(z.nombre, null),
-  })),
+  zonas: body.zonas ? (body.zonas || [])
+    .map((z) => sanitizeZona(z, 'zonas[]'))
+    .filter(Boolean)
+    : undefined,
 
-  nucleos: (body.nucleos || []).map(n => ({
-    nombre: _str(n.nombre, null),
-  })),
+  nucleos: body.nucleos ? sanitizeNucleos(body.nucleos) : undefined,
 
   actividades: (body.actividades || []).map(a => ({
     actividad: {

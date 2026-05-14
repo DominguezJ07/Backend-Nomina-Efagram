@@ -2,7 +2,8 @@ const Subproyecto = require('../models/subproyecto.model');
 const Proyecto = require('../models/proyecto.model');
 const Nucleo = require('../../Territorial/models/nucleo.model');
 const { asyncHandler, ApiError } = require('../../middlewares/errorHandler');
-const { getMongoId, idsEqual } = require('../utils/objectId.helper');
+const { getMongoId } = require('../utils/objectId.helper');
+const { sanitizeNucleos } = require('../utils/sanitizer');
 const RegistroDiario = require('../../Ejecucion/models/registroDiario.model');
 const HorasNoTrabajadas = require('../../HorasNoTrabajadas/models/HorasNoTrabajadas.model');
 
@@ -122,32 +123,8 @@ const createSubproyecto = asyncHandler(async (req, res) => {
     throw new ApiError(404, 'Proyecto no encontrado');
   }
 
-  const zonaProyectoId = getMongoId(proyecto.zona);
-
-  let nucleosDocs = [];
-
-  if (Array.isArray(nucleos) && nucleos.length > 0) {
-    const nucleosIds = nucleos.map(getMongoId).filter(Boolean);
-
-    nucleosDocs = await Nucleo.find({ _id: { $in: nucleosIds } }).lean();
-
-    if (nucleosDocs.length !== nucleosIds.length) {
-      throw new ApiError(400, 'Uno o más núcleos no existen');
-    }
-
-    if (zonaProyectoId) {
-      for (const nucleo of nucleosDocs) {
-        const zonaNucleoId = getMongoId(nucleo.zona);
-
-        if (zonaNucleoId && !idsEqual(zonaNucleoId, zonaProyectoId)) {
-          throw new ApiError(
-            400,
-            `El núcleo "${nucleo.nombre}" no pertenece a la zona del proyecto`
-          );
-        }
-      }
-    }
-  }
+  const nucleosDocs = sanitizeNucleos(nucleos);
+  const nucleoIds = nucleosDocs.map((n) => getMongoId(n.id)).filter(Boolean);
 
   const sub = await Subproyecto.create({
     codigo: String(codigo).trim().toUpperCase(),
@@ -160,13 +137,9 @@ const createSubproyecto = asyncHandler(async (req, res) => {
       nombre: proyecto.nombre || null,
     },
 
-    nucleo_ids: nucleosDocs.map((n) => n._id),
+    nucleo_ids: nucleoIds,
 
-    nucleos: nucleosDocs.map((n) => ({
-      id: String(n._id),
-      codigo: n.codigo || null,
-      nombre: n.nombre || null,
-    })),
+    nucleos: nucleosDocs,
 
     supervisor: supervisor && typeof supervisor === 'object'
       ? {
@@ -204,37 +177,22 @@ const createSubproyecto = asyncHandler(async (req, res) => {
  * PUT /api/v1/subproyectos/:id
  */
 const updateSubproyecto = asyncHandler(async (req, res) => {
-  const sub = await Subproyecto.findById(req.params.id).populate('proyecto');
+  const sub = await Subproyecto.findById(req.params.id);
   if (!sub) throw new ApiError(404, 'Subproyecto no encontrado');
 
   if (sub.estado === 'CERRADO') {
     throw new ApiError(400, 'No se puede modificar un subproyecto cerrado');
   }
 
-  if (req.body.nucleos && req.body.nucleos.length > 0) {
-    const proyecto = await Proyecto.findById(sub.proyecto._id || sub.proyecto);
-    if (proyecto?.zona) {
-      const nucleosDocs = await Nucleo.find({ _id: { $in: req.body.nucleos } });
-      for (const nucleo of nucleosDocs) {
-        if (nucleo.zona.toString() !== proyecto.zona.toString()) {
-          throw new ApiError(
-            400,
-            `El núcleo "${nucleo.nombre}" no pertenece a la zona del proyecto`
-          );
-        }
-      }
-    }
+  Object.assign(sub, req.body);
+
+  if (req.body.nucleos !== undefined) {
+    const normalizedNucleos = sanitizeNucleos(req.body.nucleos);
+    sub.nucleos = normalizedNucleos;
+    sub.nucleo_ids = normalizedNucleos.map((n) => getMongoId(n.id)).filter(Boolean);
   }
 
-  Object.assign(sub, req.body);
   await sub.save();
-
-  await sub.populate([
-    { path: 'proyecto', select: 'codigo nombre' },
-    { path: 'nucleos', select: 'codigo nombre' },
-    { path: 'supervisor', select: 'nombres apellidos' },
-    { path: 'cliente', select: 'nombre razon_social' },
-  ]);
 
   res.status(200).json({
     success: true,

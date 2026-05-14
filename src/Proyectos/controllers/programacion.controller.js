@@ -119,7 +119,7 @@ exports.getProgramacionById = async (req, res) => {
 /**
  * Body esperado:
  * {
- *   contrato:            { codigo: "CON-001", nombre: "Contrato XYZ" },
+ *   contrato_id:         "64a...",
  *   actividad:           { nombre: "Poda", codigo: "ACT-01", unidad: "hectareas" },
  *   finca:               { nombre: "Finca El Paraíso", codigo: "F-01" },
  *   lote:                { nombre: "Lote 3A", codigo: "L-3A" },

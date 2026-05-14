@@ -24,7 +24,10 @@ const actividadItemValidation = [
 const createContratoValidation = [
   body('codigo').notEmpty().withMessage('El código es obligatorio').trim().toUpperCase(),
   body('subproyecto').notEmpty().isMongoId().withMessage('ID de subproyecto inválido'),
-  body('finca').notEmpty().isMongoId().withMessage('ID de finca inválido'),
+  body('finca')
+    .notEmpty()
+    .custom((value) => value && typeof value === 'object' && !Array.isArray(value))
+    .withMessage('La finca debe enviarse como objeto'),
   // ✅ CAMBIO: lotes ahora son objetos embebidos { nombre }, no MongoIds
   body('lotes')
     .isArray({ min: 1 }).withMessage('Debe agregar al menos un lote')
@@ -52,7 +55,10 @@ const createContratoValidation = [
 const updateContratoValidation = [
   body('codigo').optional().trim().toUpperCase(),
   body('subproyecto').optional().isMongoId(),
-  body('finca').optional().isMongoId(),
+  body('finca')
+    .optional()
+    .custom((value) => value && typeof value === 'object' && !Array.isArray(value))
+    .withMessage('La finca debe enviarse como objeto'),
   // ✅ CAMBIO: lotes ahora son objetos embebidos { nombre }, no MongoIds
   body('lotes')
     .optional()

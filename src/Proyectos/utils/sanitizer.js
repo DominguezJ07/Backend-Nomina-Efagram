@@ -49,7 +49,11 @@ const sanitizeZona = (input, campo = 'zona') => {
 // ── NUCLEO ───────────────────────────────────────────────────
 const sanitizeNucleo = (input) => {
   if (!input || typeof input !== 'object') return null;
-  return { nombre: str(input.nombre, null) };
+  return {
+    id:     str(input.id || input._id || input.codigo || input.code || '', null),
+    codigo: str(input.codigo || input.code || input.id || '', null),
+    nombre: str(input.nombre || input.name || '', null),
+  };
 };
 
 // ── FINCA ────────────────────────────────────────────────────
