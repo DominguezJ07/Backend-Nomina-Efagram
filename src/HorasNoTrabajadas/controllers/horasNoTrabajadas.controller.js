@@ -113,7 +113,7 @@ exports.resumenPorSubproyecto = async (req, res) => {
         },
       },
       {
-        $unwind: { path: '$cuadrilla', preserveNullAndEmpty: true },
+        $unwind: { path: '$cuadrilla', preserveNullAndEmptyArrays: true },
       },
       {
         $project: {

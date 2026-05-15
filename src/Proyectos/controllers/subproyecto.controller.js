@@ -6,6 +6,7 @@ const { getMongoId } = require('../utils/objectId.helper');
 const { sanitizeNucleos } = require('../utils/sanitizer');
 const RegistroDiario = require('../../Ejecucion/models/registroDiario.model');
 const HorasNoTrabajadas = require('../../HorasNoTrabajadas/models/HorasNoTrabajadas.model');
+const { validateCuadrillas } = require('../../Contratos/services/contrato.service');
 
 /**
  * GET /api/v1/subproyectos?proyecto=id
@@ -96,6 +97,7 @@ const createSubproyecto = asyncHandler(async (req, res) => {
     nombre,
     proyecto: proyectoId,
     nucleos = [],
+    cuadrillas = [],
     supervisor,
     cliente,
     fecha_inicio,
@@ -126,6 +128,13 @@ const createSubproyecto = asyncHandler(async (req, res) => {
   const nucleosDocs = sanitizeNucleos(nucleos);
   const nucleoIds = nucleosDocs.map((n) => getMongoId(n.id)).filter(Boolean);
 
+  // Validar y normalizar cuadrillas (si vienen como IDs)
+  let cuadrillaIdsNormalized = [];
+  if (cuadrillas && cuadrillas.length > 0) {
+    const validated = await validateCuadrillas(cuadrillas);
+    cuadrillaIdsNormalized = validated.map(c => c._id);
+  }
+
   const sub = await Subproyecto.create({
     codigo: String(codigo).trim().toUpperCase(),
     nombre: String(nombre).trim(),
@@ -140,6 +149,7 @@ const createSubproyecto = asyncHandler(async (req, res) => {
     nucleo_ids: nucleoIds,
 
     nucleos: nucleosDocs,
+    cuadrillas: cuadrillaIdsNormalized,
 
     supervisor: supervisor && typeof supervisor === 'object'
       ? {
@@ -190,6 +200,11 @@ const updateSubproyecto = asyncHandler(async (req, res) => {
     const normalizedNucleos = sanitizeNucleos(req.body.nucleos);
     sub.nucleos = normalizedNucleos;
     sub.nucleo_ids = normalizedNucleos.map((n) => getMongoId(n.id)).filter(Boolean);
+  }
+
+  if (req.body.cuadrillas !== undefined) {
+    const validated = await validateCuadrillas(req.body.cuadrillas);
+    sub.cuadrillas = validated.map(c => c._id);
   }
 
   await sub.save();

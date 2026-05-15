@@ -55,12 +55,9 @@ const subproyectoSchema = new mongoose.Schema(
       },
     ],
 
-    // ✅ Cuadrillas — array de objetos planos sin _id
+    // ✅ Cuadrillas — referencias a la colección `Cuadrilla` (ObjectId)
     cuadrillas: [
-      {
-        nombre: { type: String, trim: true, default: null },
-        codigo: { type: String, trim: true, default: null },
-      },
+      { type: mongoose.Schema.Types.ObjectId, ref: 'Cuadrilla' }
     ],
 
     // ✅ Personal — array de objetos planos sin _id
