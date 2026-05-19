@@ -69,7 +69,19 @@ const sanitizeFinca = (input, campo = 'finca') => {
 
 // ── LOTE ─────────────────────────────────────────────────────
 const sanitizeLote = (input, campo = 'lote') => {
-  if (!input || typeof input !== 'object') fail(campo);
+  if (!input) fail(campo);
+  
+  // ✅ Aceptar string o objeto
+  if (typeof input === 'string') {
+    const trimmed = str(input);
+    if (!trimmed) fail(`${campo}`);
+    return {
+      nombre: trimmed,
+      codigo: trimmed,
+    };
+  }
+  
+  if (typeof input !== 'object') fail(campo);
   if (!str(input.nombre)) fail(`${campo}.nombre`);
   return {
     nombre: str(input.nombre),

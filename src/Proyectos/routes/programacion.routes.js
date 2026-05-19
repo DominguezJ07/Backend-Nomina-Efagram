@@ -55,6 +55,9 @@ router.post(
       .notEmpty()
       .isISO8601()
       .withMessage('Fecha inicial inválida'),
+    body('lote')
+      .notEmpty()
+      .withMessage('Lote es obligatorio'),
     validateRequest,
   ],
   programacionController.createProgramacion
