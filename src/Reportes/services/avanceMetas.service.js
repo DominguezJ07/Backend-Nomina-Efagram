@@ -1,11 +1,33 @@
 const ProyectoActividadLote = require('../../Proyectos/models/proyectoActividadLote.model');
 const RegistroDiario = require('../../Ejecucion/models/registroDiario.model');
+const { parseDateOrNull, isValidDateValue } = require('../../utils/dateUtils');
 
 /**
  * Obtener reporte de avance de metas por proyecto
  */
 const getAvanceMetasPorProyecto = async (proyectoId, fechaInicio, fechaFin) => {
   try {
+    // 🔥 VALIDACIÓN DE FECHAS: permitir undefined si no se requieren fechas
+    // pero rechazar valores inválidos como "RegistroDiario"
+    let filtroFechas = null;
+    
+    if (fechaInicio || fechaFin) {
+      if (!isValidDateValue(fechaInicio) || !isValidDateValue(fechaFin)) {
+        console.warn(`getAvanceMetasPorProyecto - Fechas inválidas. Recibido: fechaInicio="${fechaInicio}", fechaFin="${fechaFin}"`);
+        throw new Error(`Fechas inválidas. Se requieren fechas en formato ISO 8601. Recibido: "${fechaInicio}" y "${fechaFin}"`);
+      }
+      
+      const fechaInicioDate = parseDateOrNull(fechaInicio);
+      const fechaFinDate = parseDateOrNull(fechaFin);
+      
+      if (fechaInicioDate && fechaFinDate) {
+        filtroFechas = {
+          $gte: fechaInicioDate,
+          $lte: fechaFinDate
+        };
+      }
+    }
+
     // Filtros base
     const filtro = {};
     if (proyectoId) {
@@ -27,11 +49,8 @@ const getAvanceMetasPorProyecto = async (proyectoId, fechaInicio, fechaFin) => {
           proyecto_actividad_lote: pal._id
         };
 
-        if (fechaInicio && fechaFin) {
-          filtroRegistros.fecha = {
-            $gte: new Date(fechaInicio),
-            $lte: new Date(fechaFin)
-          };
+        if (filtroFechas) {
+          filtroRegistros.fecha = filtroFechas;
         }
 
         const registros = await RegistroDiario.find(filtroRegistros).lean();

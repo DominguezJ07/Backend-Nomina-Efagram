@@ -1,5 +1,6 @@
 const RegistroDiario = require('../../Ejecucion/models/registroDiario.model');
 const Persona = require('../../Personal/models/persona.model');
+const { parseDateOrNull, isValidDateValue } = require('../../utils/dateUtils');
 
 /**
  * Calcular nómina por trabajador en un período
@@ -12,12 +13,24 @@ const calcularNominaPorTrabajador = async (trabajadorId, fechaInicio, fechaFin) 
       throw new Error('Trabajador no encontrado');
     }
 
+    // 🔥 VALIDACIÓN DE FECHAS: No permitir "RegistroDiario" u otros valores inválidos
+    if (!isValidDateValue(fechaInicio) || !isValidDateValue(fechaFin)) {
+      throw new Error(`Fechas inválidas. Recibido: fechaInicio="${fechaInicio}", fechaFin="${fechaFin}". Debe usar formato ISO 8601 (ej: 2026-05-01)`);
+    }
+
+    const fechaInicioDate = parseDateOrNull(fechaInicio);
+    const fechaFinDate = parseDateOrNull(fechaFin);
+
+    if (!fechaInicioDate || !fechaFinDate) {
+      throw new Error('No se pudieron parsear las fechas proporcionadas');
+    }
+
     // Obtener registros del trabajador
     const registros = await RegistroDiario.find({
       trabajador: trabajadorId,
       fecha: {
-        $gte: new Date(fechaInicio),
-        $lte: new Date(fechaFin)
+        $gte: fechaInicioDate,
+        $lte: fechaFinDate
       },
       estado: { $in: ['APROBADO', 'CORREGIDO'] }
     })
@@ -87,10 +100,23 @@ const calcularNominaPorTrabajador = async (trabajadorId, fechaInicio, fechaFin) 
  */
 const getResumenNominaGeneral = async (fechaInicio, fechaFin) => {
   try {
+    // 🔥 VALIDACIÓN DE FECHAS: No permitir "RegistroDiario" u otros valores inválidos
+    if (!isValidDateValue(fechaInicio) || !isValidDateValue(fechaFin)) {
+      console.warn(`getResumenNominaGeneral - Fechas inválidas. Recibido: fechaInicio="${fechaInicio}", fechaFin="${fechaFin}"`);
+      throw new Error(`Fechas inválidas. Se requieren fechas en formato ISO 8601. Recibido: "${fechaInicio}" y "${fechaFin}"`);
+    }
+
+    const fechaInicioDate = parseDateOrNull(fechaInicio);
+    const fechaFinDate = parseDateOrNull(fechaFin);
+
+    if (!fechaInicioDate || !fechaFinDate) {
+      throw new Error('No se pudieron parsear las fechas proporcionadas');
+    }
+
     const registros = await RegistroDiario.find({
       fecha: {
-        $gte: new Date(fechaInicio),
-        $lte: new Date(fechaFin)
+        $gte: fechaInicioDate,
+        $lte: fechaFinDate
       },
       estado: { $in: ['APROBADO', 'CORREGIDO'] }
     })

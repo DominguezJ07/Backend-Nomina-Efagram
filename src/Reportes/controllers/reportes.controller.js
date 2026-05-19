@@ -142,6 +142,15 @@ const getResumenNominaGeneral = asyncHandler(async (req, res) => {
 const getDashboardGeneral = asyncHandler(async (req, res) => {
   const { fecha_inicio, fecha_fin } = req.query;
 
+  // 🔥 VALIDACIÓN: Verificar que se enviaron fechas válidas
+  if (!fecha_inicio || !fecha_fin) {
+    return res.status(400).json({
+      success: false,
+      message: 'Se requieren fecha_inicio y fecha_fin en formato ISO 8601 (ej: 2026-05-01)',
+      ejemplo: '/api/v1/reportes/dashboard?fecha_inicio=2026-05-01&fecha_fin=2026-05-31'
+    });
+  }
+
   // Ejecutar todos los reportes en paralelo
   const [avanceMetas, porActividad, nominaGeneral] = await Promise.all([
     avanceMetasService.getAvanceMetasPorProyecto(null, fecha_inicio, fecha_fin),

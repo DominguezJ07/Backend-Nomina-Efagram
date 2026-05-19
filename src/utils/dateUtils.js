@@ -172,6 +172,32 @@ const getDayNameES = (date) => {
   return dt.setLocale('es').toFormat('cccc'); // "jueves", "viernes", etc.
 };
 
+/**
+ * Verificar si un valor puede convertirse a Date válida
+ * Retorna false si es null, undefined, string inválido, etc.
+ * @param {*} value - Valor a verificar
+ * @returns {Boolean}
+ */
+const isValidDateValue = (value) => {
+  if (!value) return false;
+  
+  const date = new Date(value);
+  return !Number.isNaN(date.getTime());
+};
+
+/**
+ * Parsear valor a Date o retornar null si es inválido
+ * Util para construcción segura de filtros Mongoose
+ * @param {*} value - Valor a parsear
+ * @returns {Date|null}
+ */
+const parseDateOrNull = (value) => {
+  if (!value) return null;
+  
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
 module.exports = {
   getStartOfWeek,
   getEndOfWeek,
@@ -185,5 +211,7 @@ module.exports = {
   getNowCO,
   isThursday,
   generateWeeksInRange,
-  getDayNameES
+  getDayNameES,
+  isValidDateValue,
+  parseDateOrNull
 };
