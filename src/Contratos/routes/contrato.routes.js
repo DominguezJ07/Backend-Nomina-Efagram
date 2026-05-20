@@ -49,6 +49,7 @@ const createContratoValidation = [
     .optional({ nullable: true, checkFalsy: true })
     .isISO8601().withMessage('Fecha de fin inválida'),
   body('observaciones').optional().trim(),
+  body('estado').optional().isIn(['PENDIENTE', 'BORRADOR', 'ACTIVO', 'CERRADO', 'CANCELADO']).withMessage('Estado inválido'),
   validateRequest,
 ];
 
@@ -75,7 +76,7 @@ const updateContratoValidation = [
   body('fecha_fin')
     .optional({ nullable: true, checkFalsy: true })
     .isISO8601().withMessage('Fecha de fin inválida'),
-  body('estado').optional().isIn(['BORRADOR', 'ACTIVO', 'CERRADO', 'CANCELADO']),
+  body('estado').optional().isIn(['PENDIENTE', 'BORRADOR', 'ACTIVO', 'CERRADO', 'CANCELADO']),
   body('observaciones').optional().trim(),
   validateRequest,
 ];

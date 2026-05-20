@@ -15,7 +15,11 @@ const {
   // ===== NUEVAS FUNCIONES DE PRESUPUESTO =====
   actualizarPresupuestoAnual,
   obtenerPresupuestoAnual,
-  obtenerResumenPresupuestos
+  obtenerResumenPresupuestos,
+  // ===== NUEVAS FUNCIONES DE PROGRESO =====
+  getProgresoProyecto,
+  getTodosProgresos,
+  getProgresoSubproyectosProyecto,
 } = require('../controllers/proyecto.controller');
 
 const router = express.Router();
@@ -206,6 +210,33 @@ router.post(
   authorize(ROLES.ADMIN_SISTEMA, ROLES.JEFE_OPERACIONES),
   validateMongoId('id'),
   cerrarProyecto
+);
+
+// ====================================================================
+// RUTAS DE PROGRESO (CASCADA: Proyectos ← Subproyectos ← Programaciones)
+// ====================================================================
+
+// GET /api/v1/proyectos/progresos/todos
+// Obtener progreso de TODOS los proyectos
+router.get(
+  '/progresos/todos',
+  getTodosProgresos
+);
+
+// GET /api/v1/proyectos/:id/progreso
+// Obtener progreso de un proyecto específico (con cascada de subproyectos)
+router.get(
+  '/:id/progreso',
+  validateMongoId('id'),
+  getProgresoProyecto
+);
+
+// GET /api/v1/proyectos/:id/subproyectos-progreso
+// Obtener progreso de todos los subproyectos de un proyecto
+router.get(
+  '/:id/subproyectos-progreso',
+  validateMongoId('id'),
+  getProgresoSubproyectosProyecto
 );
 
 module.exports = router;

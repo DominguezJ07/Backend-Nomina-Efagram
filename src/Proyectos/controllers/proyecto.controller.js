@@ -12,6 +12,7 @@ const Proyecto = require('../models/proyecto.model');
 const mongoose = require('mongoose');
 const { asyncHandler, ApiError } = require('../../middlewares/errorHandler');
 const { sanitizePersona, sanitizeZona, sanitizeClienteRef, sanitizeFincas, sanitizePersonas, sanitizeNucleos, _str, _num } = require('../utils/sanitizer');
+const progresoService = require('../services/progreso.service');
 
 // ── Transformación de actividades por intervención ────────────
 // ✅ .map() interno — nunca se guarda el array crudo
@@ -390,6 +391,40 @@ const obtenerResumenPresupuestos = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, count: proyectos.length, totales, data: proyectos });
 });
 
+// ── 10. PROGRESO DEL PROYECTO (Cascada Subproyectos) ────────────
+const getProgresoProyecto = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const progreso = await progresoService.calcularProgresoProyecto(id);
+
+  res.status(200).json({
+    success: true,
+    data: progreso,
+  });
+});
+
+// ── 11. PROGRESO DE TODOS LOS PROYECTOS ────────────────────────
+const getTodosProgresos = asyncHandler(async (req, res) => {
+  const progresos = await progresoService.obtenerProgresoTodoProyectos();
+
+  res.status(200).json({
+    success: true,
+    data: progresos,
+  });
+});
+
+// ── 12. PROGRESO SUBPROYECTOS DE UN PROYECTO ──────────────────
+const getProgresoSubproyectosProyecto = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const progresos = await progresoService.obtenerProgresoSubproyectosPorProyecto(id);
+
+  res.status(200).json({
+    success: true,
+    data: progresos,
+  });
+});
+
 module.exports = {
   getProyectos,
   getProyecto,
@@ -402,4 +437,7 @@ module.exports = {
   actualizarPresupuestoAnual,
   obtenerPresupuestoAnual,
   obtenerResumenPresupuestos,
-};  
+  getProgresoProyecto,
+  getTodosProgresos,
+  getProgresoSubproyectosProyecto,
+};

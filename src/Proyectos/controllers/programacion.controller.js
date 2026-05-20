@@ -13,6 +13,7 @@ const Programacion               = require('../models/programacion.model');
 const RegistroDiarioProgramacion = require('../models/registroDiarioProgramacion.model');
 const Contrato                   = require('../../Contratos/models/contrato.model');
 const { getMongoId }             = require('../utils/objectId.helper');
+const progresoService            = require('../services/progreso.service');
 const {
   sanitizeContratoRef,
   sanitizeFinca,

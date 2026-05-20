@@ -7,6 +7,7 @@ const { sanitizeNucleos } = require('../utils/sanitizer');
 const RegistroDiario = require('../../Ejecucion/models/registroDiario.model');
 const HorasNoTrabajadas = require('../../HorasNoTrabajadas/models/HorasNoTrabajadas.model');
 const { validateCuadrillas } = require('../../Contratos/services/contrato.service');
+const progresoService = require('../services/progreso.service');
 
 /**
  * GET /api/v1/subproyectos?proyecto=id
@@ -271,6 +272,21 @@ const getNucleosDisponibles = asyncHandler(async (req, res) => {
   });
 });
 
+/**
+ * GET /api/v1/subproyectos/:id/progreso
+ * Obtener progreso del subproyecto (cascada desde programaciones)
+ */
+const getProgresoSubproyecto = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const progreso = await progresoService.calcularProgresoSubproyecto(id);
+
+  res.status(200).json({
+    success: true,
+    data: progreso,
+  });
+});
+
 module.exports = {
   getSubproyectos,
   getSubproyecto,
@@ -278,4 +294,5 @@ module.exports = {
   updateSubproyecto,
   deleteSubproyecto,
   getNucleosDisponibles,
+  getProgresoSubproyecto,
 };

@@ -117,8 +117,8 @@ const contratoSchema = new mongoose.Schema(
 
     estado: {
       type: String,
-      enum: ['BORRADOR', 'ACTIVO', 'CERRADO', 'CANCELADO'],
-      default: 'ACTIVO',
+      enum: ['PENDIENTE', 'BORRADOR', 'ACTIVO', 'CERRADO', 'CANCELADO'],
+      default: 'PENDIENTE',
     },
 
     creado_por: {

@@ -10,6 +10,7 @@ const {
   updateSubproyecto,
   deleteSubproyecto,
   getNucleosDisponibles,
+  getProgresoSubproyecto,
 } = require('../controllers/subproyecto.controller');
 
 const router = express.Router();
@@ -25,6 +26,7 @@ const validacion = [
 router.get('/', getSubproyectos);
 router.get('/:id', validateMongoId('id'), getSubproyecto);
 router.get('/:id/nucleos-disponibles', validateMongoId('id'), getNucleosDisponibles);
+router.get('/:id/progreso', validateMongoId('id'), getProgresoSubproyecto);
 router.post('/', authorize(ROLES.ADMIN_SISTEMA, ROLES.JEFE_OPERACIONES), validacion, createSubproyecto);
 router.put('/:id', authorize(ROLES.ADMIN_SISTEMA, ROLES.JEFE_OPERACIONES), validateMongoId('id'), updateSubproyecto);
 router.delete('/:id', authorize(ROLES.ADMIN_SISTEMA), validateMongoId('id'), deleteSubproyecto);
