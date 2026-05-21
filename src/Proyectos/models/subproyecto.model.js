@@ -118,6 +118,14 @@ const subproyectoSchema = new mongoose.Schema(
       default: 'ACTIVO',
     },
 
+    // ✅ Porcentaje de horas distribuidas en contratos
+    porcentaje_distribuido: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 100,
+    },
+
     observaciones: { type: String, trim: true },
   },
   { timestamps: true, versionKey: false }

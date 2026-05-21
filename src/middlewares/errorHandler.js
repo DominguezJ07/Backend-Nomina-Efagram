@@ -86,8 +86,18 @@ const errorHandler = (err, req, res, next) => {
 
 /**
  * Middleware para rutas no encontradas
+ * ✅ Devuelve JSON para todas las rutas /api
  */
 const notFound = (req, res, next) => {
+  // Si es una ruta de API, responder con JSON
+  if (req.originalUrl.startsWith('/api')) {
+    return res.status(404).json({
+      success: false,
+      message: `Ruta API no encontrada: ${req.originalUrl}`,
+    });
+  }
+  
+  // Para otras rutas, pasar al error handler
   const error = new ApiError(404, `Ruta no encontrada: ${req.originalUrl}`);
   next(error);
 };

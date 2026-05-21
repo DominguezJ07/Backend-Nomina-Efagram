@@ -68,7 +68,17 @@ const createAsignacion = asyncHandler(async (req, res) => {
     throw new ApiError(
       400,
       `La cantidad (${cantidad}) excede la disponible (${disponible.toFixed(2)}). ` +
-      `Total: ${actProyecto.cantidad_total}, Ya asignado: ${actProyecto.cantidad_asignada}`
+      `Total: ${actProyecto.cantidad_total}, Ya asignado: ${actProyecto.cantidad_asignada}`,
+      [
+        {
+          field: 'cantidad',
+          message: `Cantidad solicitada: ${cantidad}`,
+          total: actProyecto.cantidad_total,
+          ya_asignado: actProyecto.cantidad_asignada,
+          disponible: parseFloat(disponible.toFixed(2)),
+          cantidad_solicitada: cantidad,
+        },
+      ]
     );
   }
 

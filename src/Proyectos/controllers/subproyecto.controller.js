@@ -66,7 +66,8 @@ const getSubproyectos = asyncHandler(async (req, res) => {
       return {
         ...sub.toObject(),
         horasTrabajadas: horasTrabajadas[0]?.total || 0,
-        horasNoTrabajadas: horasNoTrabajadas[0]?.total || 0
+        horasNoTrabajadas: horasNoTrabajadas[0]?.total || 0,
+        porcentaje_distribuido: Number(sub.porcentaje_distribuido) || 0,
       };
     })
   );
@@ -86,7 +87,10 @@ const getSubproyecto = asyncHandler(async (req, res) => {
 
   if (!sub) throw new ApiError(404, 'Subproyecto no encontrado');
 
-  res.status(200).json({ success: true, data: sub });
+  const subObj = sub.toObject();
+  subObj.porcentaje_distribuido = Number(sub.porcentaje_distribuido) || 0;
+
+  res.status(200).json({ success: true, data: subObj });
 });
 
 /**
