@@ -287,21 +287,31 @@ class ProgresoService {
    */
   async calcularProgresoContrato(contratoId) {
     try {
+      // Validar que el ID sea válido
+      if (!contratoId || contratoId.toString().trim().length === 0) {
+        throw new ApiError(400, 'El ID del contrato es requerido');
+      }
+
       const contrato = await Contrato.findById(contratoId).lean();
       if (!contrato) {
         throw new ApiError(404, 'Contrato no encontrado');
       }
 
       // Obtener todas las programaciones de este contrato
-      const programaciones = await Programacion.find({
-        'contrato.codigo': contrato.codigo
-      }).lean();
+      let programaciones = [];
+      
+      if (contrato.codigo) {
+        programaciones = await Programacion.find({
+          'contrato.codigo': contrato.codigo
+        }).lean();
+      }
 
+      // Si no hay programaciones y el código es null/undefined, puede ser normal
       if (programaciones.length === 0) {
         return {
           _id: contratoId,
-          codigo: contrato.codigo,
-          nombre: contrato.nombre || contrato.codigo,
+          codigo: contrato.codigo || contratoId.toString(),
+          nombre: contrato.nombre || contrato.codigo || 'Sin nombre',
           porcentaje: 0,
           cantidad_ejecutada: 0,
           cantidad_proyectada: 0,
@@ -333,8 +343,8 @@ class ProgresoService {
 
       return {
         _id: contratoId,
-        codigo: contrato.codigo,
-        nombre: contrato.nombre || contrato.codigo,
+        codigo: contrato.codigo || contratoId.toString(),
+        nombre: contrato.nombre || contrato.codigo || 'Sin nombre',
         porcentaje,
         cantidad_ejecutada: totalEjecutado,
         cantidad_proyectada: totalProyectado,
