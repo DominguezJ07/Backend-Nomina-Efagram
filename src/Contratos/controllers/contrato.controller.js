@@ -1,6 +1,7 @@
 const Contrato  = require('../models/contrato.model');
 const Persona   = require('../../Personal/models/persona.model');
 const contratoService = require('../services/contrato.service');
+const progresoService = require('../../Proyectos/services/progreso.service');
 const { asyncHandler, ApiError } = require('../../middlewares/errorHandler');
 
 const POPULATE_CONTRATO = [
@@ -185,6 +186,18 @@ const deleteContrato = asyncHandler(async (req, res) => {
   });
 });
 
+// PROGRESO DE CONTRATO
+const getProgresoContrato = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const progreso = await progresoService.calcularProgresoContrato(id);
+
+  res.status(200).json({
+    success: true,
+    data: progreso,
+  });
+});
+
 // ACTIVIDADES DISPONIBLES
 const getActividadesDisponiblesSubproyecto = asyncHandler(async (req, res) => {
   const { subproyectoId } = req.params;
@@ -244,5 +257,6 @@ module.exports = {
   createContrato,
   updateContrato,
   deleteContrato,
+  getProgresoContrato,
   getActividadesDisponiblesSubproyecto,
 };

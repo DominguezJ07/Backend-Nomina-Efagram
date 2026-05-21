@@ -278,6 +278,75 @@ class ProgresoService {
       throw error;
     }
   }
+
+  /**
+   * NIVEL 2.5: Calcular progreso de un Contrato
+   * ← Suma de todas sus Programaciones
+   * Entrada: contrato._id
+   * Salida: { porcentaje, cantidad_ejecutada, cantidad_proyectada, programaciones[], ... }
+   */
+  async calcularProgresoContrato(contratoId) {
+    try {
+      const contrato = await Contrato.findById(contratoId).lean();
+      if (!contrato) {
+        throw new ApiError(404, 'Contrato no encontrado');
+      }
+
+      // Obtener todas las programaciones de este contrato
+      const programaciones = await Programacion.find({
+        'contrato.codigo': contrato.codigo
+      }).lean();
+
+      if (programaciones.length === 0) {
+        return {
+          _id: contratoId,
+          codigo: contrato.codigo,
+          nombre: contrato.nombre || contrato.codigo,
+          porcentaje: 0,
+          cantidad_ejecutada: 0,
+          cantidad_proyectada: 0,
+          total_programaciones: 0,
+          estado: 'SIN_PROGRAMACIONES',
+          programaciones: [],
+        };
+      }
+
+      // Calcular progreso para cada programación
+      const detalles = [];
+      let totalEjecutado = 0;
+      let totalProyectado = 0;
+
+      for (const prog of programaciones) {
+        const progreso = await this.calcularProgesoProgramacion(prog._id);
+        detalles.push(progreso);
+        totalEjecutado += progreso.cantidad_ejecutada;
+        totalProyectado += progreso.cantidad_proyectada;
+      }
+
+      const porcentaje = totalProyectado > 0
+        ? Math.round((totalEjecutado / totalProyectado) * 100)
+        : 0;
+
+      let estado = 'PENDIENTE';
+      if (porcentaje === 100) estado = 'COMPLETADO';
+      else if (porcentaje > 0) estado = 'EN_PROGRESO';
+
+      return {
+        _id: contratoId,
+        codigo: contrato.codigo,
+        nombre: contrato.nombre || contrato.codigo,
+        porcentaje,
+        cantidad_ejecutada: totalEjecutado,
+        cantidad_proyectada: totalProyectado,
+        total_programaciones: detalles.length,
+        estado,
+        programaciones: detalles,
+      };
+    } catch (error) {
+      console.error('Error en calcularProgresoContrato:', error);
+      throw error;
+    }
+  }
 }
 
 module.exports = new ProgresoService();

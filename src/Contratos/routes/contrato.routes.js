@@ -9,6 +9,7 @@ const {
   createContrato,
   updateContrato,
   deleteContrato,
+  getProgresoContrato,
   getActividadesDisponiblesSubproyecto,
 } = require('../controllers/contrato.controller');
 
@@ -84,7 +85,6 @@ const updateContratoValidation = [
 router.use(authenticate);
 
 router.get('/', getContratos);
-router.get('/:id', validateMongoId('id'), getContrato);
 
 // Ruta de actividades disponibles — ANTES de /:id para que Express no lo confunda
 router.get(
@@ -93,6 +93,15 @@ router.get(
   [query('excludeContratoId').optional().isMongoId(), validateRequest],
   getActividadesDisponiblesSubproyecto
 );
+
+// Ruta de progreso de contrato — ANTES de /:id para que Express no lo confunda
+router.get(
+  '/:id/progreso',
+  validateMongoId('id'),
+  getProgresoContrato
+);
+
+router.get('/:id', validateMongoId('id'), getContrato);
 
 router.post(
   '/',
