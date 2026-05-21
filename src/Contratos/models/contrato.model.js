@@ -121,6 +121,26 @@ const contratoSchema = new mongoose.Schema(
       default: 'PENDIENTE',
     },
 
+    // ✅ CAMPOS DE PROGRESO (calculados automáticamente)
+    porcentaje_ejecucion: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 100,
+    },
+
+    cantidad_ejecutada: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    cantidad_proyectada: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
     creado_por: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Persona',

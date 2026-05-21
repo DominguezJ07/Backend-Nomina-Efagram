@@ -5,6 +5,7 @@
 const mongoose                   = require('mongoose');
 const RegistroDiarioProgramacion = require('../models/registroDiarioProgramacion.model');
 const Programacion               = require('../models/programacion.model');
+const cascadaProgresoService     = require('../services/cascadaProgreso.service');
 
 const normalizarFechaUTC = (fecha) => {
   const d = new Date(fecha);
@@ -177,7 +178,8 @@ exports.createRegistroDiario = async (req, res) => {
       registrado_por: usuario_id,
     });
 
-    await recalcularProgramacion(programacion_id);
+    // 🔥 DISPARA CASCADA: Programación → Contrato → Subproyecto → Proyecto
+    await cascadaProgresoService.dispararCascada(programacion_id);
 
     res.status(201).json({ success: true, message: 'Registro creado', data: registro });
   } catch (error) {
@@ -268,7 +270,8 @@ exports.updateRegistroDiario = async (req, res) => {
       { new: true, runValidators: false }
     );
 
-    await recalcularProgramacion(registro.programacion);
+    // 🔥 DISPARA CASCADA: Programación → Contrato → Subproyecto → Proyecto
+    await cascadaProgresoService.dispararCascada(registro.programacion);
 
     res.json({
       success: true,

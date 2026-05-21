@@ -126,6 +126,26 @@ const subproyectoSchema = new mongoose.Schema(
       max: 100,
     },
 
+    // ✅ CAMPOS DE PROGRESO (calculados automáticamente)
+    porcentaje_ejecucion: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 100,
+    },
+
+    cantidad_ejecutada: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    cantidad_proyectada: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
     observaciones: { type: String, trim: true },
   },
   { timestamps: true, versionKey: false }

@@ -159,6 +159,7 @@ const contratoRoutes = require('./Contratos/routes/contrato.routes');
 // Programación
 const programacionRoutes = require('./Proyectos/routes/programacion.routes');
 const registroDiarioProgramacionRoutes = require('./Proyectos/routes/registroDiarioProgramacion.routes');
+const progresoRoutes = require('./Proyectos/routes/progreso.routes');
 
 // Reportes
 const reportesRoutes = require('./Reportes/routes/reportes.routes');
@@ -212,6 +213,7 @@ apiRouter.use('/contratos', contratoRoutes);
 
 apiRouter.use('/programaciones', programacionRoutes);
 apiRouter.use('/registros-diarios-programacion', registroDiarioProgramacionRoutes);
+apiRouter.use('/progreso', progresoRoutes);
 
 apiRouter.use('/reportes', reportesRoutes);
 
