@@ -62,10 +62,6 @@ const proyectoValidation = [
     .optional()
     .isIn(Object.values(ESTADOS_PROYECTO))
     .withMessage('Estado inválido'),
-  body('responsable')
-    .optional()
-    .isMongoId()
-    .withMessage('ID de responsable inválido'),
   validateRequest
 ];
 
