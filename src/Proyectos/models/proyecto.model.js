@@ -112,6 +112,8 @@ const proyectoSchema = new mongoose.Schema(
     },
 
     observaciones: { type: String, trim: true },
+    total_actividades: { type: Number, default: 0, min: 0 },
+    total_proyecto: { type: Number, default: 0, min: 0 },
   },
   { timestamps: true, versionKey: false }
 );
@@ -145,6 +147,26 @@ proyectoSchema.pre('save', function () {
     no_programadas:  { cantidad_actividades: n.cantidadTotal, monto_presupuestado: n.montoTotal },
     establecimiento: { cantidad_actividades: e.cantidadTotal, monto_presupuestado: e.montoTotal },
   };
+
+  // Calcular totales globales del proyecto (suma de todas las intervenciones + actividades planificadas)
+  const totalCantidadIntervenciones = (m.cantidadTotal || 0) + (n.cantidadTotal || 0) + (e.cantidadTotal || 0);
+  const totalMontoIntervenciones    = (m.montoTotal || 0) + (n.montoTotal || 0) + (e.montoTotal || 0);
+
+  // Además sumar las actividades planas en `actividades` si existen
+  const actividadesPlanas = this.actividades || [];
+  const flat = actividadesPlanas.reduce(
+    (acc, a) => {
+      const cantidad = Number(a.cantidad) || 0;
+      const precio   = Number(a.precio_unitario) || 0;
+      acc.cantidad += cantidad;
+      acc.monto    += cantidad * precio;
+      return acc;
+    },
+    { cantidad: 0, monto: 0 }
+  );
+
+  this.total_actividades = totalCantidadIntervenciones + flat.cantidad;
+  this.total_proyecto    = Number((totalMontoIntervenciones + flat.monto).toFixed(2));
 });
 
 module.exports = mongoose.model('Proyecto', proyectoSchema);

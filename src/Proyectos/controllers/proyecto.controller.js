@@ -57,7 +57,12 @@ const transformarBody = (body) => ({
         nombre: _str(body.zona.nombre, null),
         codigo: _str(body.zona.codigo, null),
       }
-    : undefined,
+    : (body.zona_nombre || body.zona_codigo)
+      ? {
+          nombre: _str(body.zona_nombre, null),
+          codigo: _str(body.zona_codigo, null),
+        }
+      : undefined,
 
   // ✅ Responsable — objeto plano sanitizado
   responsable: body.responsable
@@ -66,7 +71,13 @@ const transformarBody = (body) => ({
         documento: _str(body.responsable.documento, null),
         cargo:     _str(body.responsable.cargo,     null),
       }
-    : null,
+    : (body.responsable_nombre || body.responsable_documento || body.responsable_cargo)
+      ? {
+          nombre:    _str(body.responsable_nombre,    null),
+          documento: _str(body.responsable_documento, null),
+          cargo:     _str(body.responsable_cargo,     null),
+        }
+      : null,
 
   fecha_inicio:       body.fecha_inicio,
   fecha_fin_estimada: body.fecha_fin_estimada || null,
@@ -84,7 +95,20 @@ const transformarBody = (body) => ({
         no_programadas:  mapActividades(body.actividades_por_intervencion.no_programadas),
         establecimiento: mapActividades(body.actividades_por_intervencion.establecimiento),
       }
-    : undefined,
+    : (typeof body.actividades_por_intervencion === 'string')
+      ? (() => {
+          try {
+            const parsed = JSON.parse(body.actividades_por_intervencion);
+            return {
+              mantenimiento:   mapActividades(parsed.mantenimiento),
+              no_programadas:  mapActividades(parsed.no_programadas),
+              establecimiento: mapActividades(parsed.establecimiento),
+            };
+          } catch (e) {
+            return undefined;
+          }
+        })()
+      : undefined,
 
   // ✅ Arrays planos con .map()
   fincas: body.fincas ? sanitizeFincas(body.fincas) : undefined,
