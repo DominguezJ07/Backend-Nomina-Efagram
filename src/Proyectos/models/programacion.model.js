@@ -218,3 +218,48 @@ programacionSchema.methods.obtenerRegistrosDiarios = function () {
 };
 
 module.exports = mongoose.model('Programacion', programacionSchema);
+
+// ── HOOKS: al cambiar programaciones, actualizar porcentaje_distribuido en el contrato (campo histórico)
+async function _recalcularPorcentajeParaContrato(codigoContrato) {
+  if (!codigoContrato) return;
+  const Contrato = mongoose.model('Contrato');
+  const contrato = await Contrato.findOne({ codigo: codigoContrato });
+  if (!contrato) return;
+  if (typeof contrato.calcularPorcentajeDistribuido === 'function') {
+    const pct = await contrato.calcularPorcentajeDistribuido();
+    // Actualizar campo histórico en BD (compatibilidad)
+    await Contrato.updateOne({ _id: contrato._id }, { $set: { porcentaje_distribuido: pct } });
+  }
+}
+
+programacionSchema.post('save', async function () {
+  try {
+    await _recalcularPorcentajeParaContrato(this.contrato?.codigo);
+  } catch (err) {
+    console.error('Error recalculando porcentaje tras save programacion:', err);
+  }
+});
+
+programacionSchema.post('remove', async function () {
+  try {
+    await _recalcularPorcentajeParaContrato(this.contrato?.codigo);
+  } catch (err) {
+    console.error('Error recalculando porcentaje tras remove programacion:', err);
+  }
+});
+
+programacionSchema.post('findOneAndUpdate', async function (doc) {
+  try {
+    if (doc) await _recalcularPorcentajeParaContrato(doc.contrato?.codigo);
+  } catch (err) {
+    console.error('Error recalculando porcentaje tras findOneAndUpdate programacion:', err);
+  }
+});
+
+programacionSchema.post('findOneAndDelete', async function (doc) {
+  try {
+    if (doc) await _recalcularPorcentajeParaContrato(doc.contrato?.codigo);
+  } catch (err) {
+    console.error('Error recalculando porcentaje tras findOneAndDelete programacion:', err);
+  }
+});

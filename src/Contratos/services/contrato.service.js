@@ -192,6 +192,15 @@ const validateContratoExists = async (contratoId) => {
   return contrato;
 };
 
+// Calcula el porcentaje distribuido para un contrato (valor entero redondeado)
+const calcularPorcentajeDistribuido = async (contratoId) => {
+  const contrato = await Contrato.findById(contratoId);
+  if (!contrato) return 0;
+
+  // Delega en el método del modelo
+  return contrato.calcularPorcentajeDistribuido();
+};
+
 const validateCodigoUnico = async (codigo, excludeId = null) => {
   const query = { codigo: codigo.toUpperCase() };
   if (excludeId) query._id = { $ne: excludeId };
@@ -208,4 +217,5 @@ module.exports = {
   validateCuadrillas,
   validateContratoExists,
   validateCodigoUnico,
+  calcularPorcentajeDistribuido,
 };

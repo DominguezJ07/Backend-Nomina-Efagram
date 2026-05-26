@@ -183,6 +183,33 @@ contratoSchema.virtual('valor_total').get(function () {
   );
 });
 
+// Método helper (async) que calcula el porcentaje distribuido basado en Programacion
+contratoSchema.methods.calcularPorcentajeDistribuido = async function () {
+  const Programacion = mongoose.model('Programacion');
+
+  // Buscar programaciones activas relacionadas por código de contrato
+  const programaciones = await Programacion.find({
+    'contrato.codigo': this.codigo,
+    estado: { $ne: 'CANCELADA' },
+  }).select('valor_proyectado estado cantidad_proyectada cantidad precio_unitario');
+
+  const valorDistribuido = programaciones.reduce((sum, p) => sum + (p.valor_proyectado || 0), 0);
+
+  const valorTotal = this.valor_total || 0;
+
+  if (!valorTotal || valorTotal <= 0) return 0;
+
+  return Math.round((valorDistribuido / valorTotal) * 100);
+};
+
+// Virtual read-only para exponer porcentaje_distribuido cuando el controlador la setea
+contratoSchema.virtual('porcentaje_distribuido').get(function () {
+  // Si el documento tiene el valor calculado en memoria, devolverlo;
+  // el controlador establecerá `this._porcentaje_distribuido` antes de serializar.
+  if (typeof this._porcentaje_distribuido !== 'undefined') return this._porcentaje_distribuido;
+  return 0;
+});
+
 contratoSchema.set('toJSON', { virtuals: true });
 contratoSchema.set('toObject', { virtuals: true });
 

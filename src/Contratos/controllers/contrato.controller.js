@@ -30,10 +30,20 @@ const getContratos = asyncHandler(async (req, res) => {
     .populate(POPULATE_CONTRATO)
     .sort({ createdAt: -1 });
 
+  // Calcular porcentaje_distribuido para cada contrato en background
+  const contratosWithPorcentaje = await Promise.all(
+    contratos.map(async (c) => {
+      const pct = await contratoService.calcularPorcentajeDistribuido(c._id);
+      // setear valor en memoria para que virtual lo exponga en JSON
+      c._porcentaje_distribuido = pct;
+      return c;
+    })
+  );
+
   res.status(200).json({
     success: true,
-    count: contratos.length,
-    data: contratos
+    count: contratosWithPorcentaje.length,
+    data: contratosWithPorcentaje
   });
 });
 
@@ -44,11 +54,18 @@ const getContrato = asyncHandler(async (req, res) => {
 
   if (!contrato) throw new ApiError(404, 'Contrato no encontrado');
 
+  // Calcular y adjuntar porcentaje_distribuido
+  const pct = await contratoService.calcularPorcentajeDistribuido(contrato._id);
+  contrato._porcentaje_distribuido = pct;
+
   res.status(200).json({ success: true, data: contrato });
 });
 
 // POST
 const createContrato = asyncHandler(async (req, res) => {
+  // Evitar que el frontend envíe porcentaje_distribuido (lo calculamos en lectura)
+  if (req.body && 'porcentaje_distribuido' in req.body) delete req.body.porcentaje_distribuido;
+
   let {
     codigo, subproyecto, finca, lotes, actividades,
     cuadrillas, fecha_inicio, fecha_fin, observaciones,
@@ -94,6 +111,9 @@ const createContrato = asyncHandler(async (req, res) => {
 
   await contrato.populate(POPULATE_CONTRATO);
 
+  // Adjuntar porcentaje calculado
+  contrato._porcentaje_distribuido = await contratoService.calcularPorcentajeDistribuido(contrato._id);
+
   res.status(201).json({
     success: true,
     message: 'Contrato creado exitosamente',
@@ -104,6 +124,9 @@ const createContrato = asyncHandler(async (req, res) => {
 // PUT
 const updateContrato = asyncHandler(async (req, res) => {
   const contrato = await contratoService.validateContratoExists(req.params.id);
+
+  // Evitar que el frontend modifique porcentaje_distribuido
+  if (req.body && 'porcentaje_distribuido' in req.body) delete req.body.porcentaje_distribuido;
 
   if (['CERRADO', 'CANCELADO'].includes(contrato.estado)) {
     throw new ApiError(400, `No se puede modificar un contrato en estado ${contrato.estado}`);
