@@ -8,7 +8,9 @@
  */
 
 const Proyecto              = require('../models/proyecto.model');
+const ActividadProyecto     = require('../models/actividadProyecto.model');
 const ProyectoActividadLote = require('../models/proyectoActividadLote.model');
+const progresoService       = require('./progreso.service');
 const { ApiError }          = require('../../middlewares/errorHandler');
 const { ESTADOS_PROYECTO, ESTADOS_PAL } = require('../../config/constants');
 
@@ -150,6 +152,74 @@ class ProyectoService {
     if (estado) filtro.estado = estado;
 
     return Proyecto.find(filtro).sort({ createdAt: -1 }).lean();
+  }
+
+  async calcularTotalesActividadProyecto(proyectoId) {
+    const actividades = await ActividadProyecto.find({ proyecto: proyectoId }).lean();
+
+    const total_proyecto = actividades.reduce(
+      (sum, item) => sum + ((Number(item.precio_unitario) || 0) * (Number(item.cantidad_total) || 0)),
+      0
+    );
+
+    const total_actividades = actividades.length;
+
+    return {
+      total_proyecto: Number(total_proyecto.toFixed(2)),
+      valor_total: Number(total_proyecto.toFixed(2)),
+      total_actividades,
+      actividades_proyecto: actividades,
+    };
+  }
+
+  async calcularTotalesProyectoVisible(proyecto) {
+    const totalesActividadProyecto = await this.calcularTotalesActividadProyecto(proyecto._id);
+
+    // Si existen actividades del proyecto explícitas, preferir ese total.
+    const total_proyecto = totalesActividadProyecto.total_actividades > 0
+      ? totalesActividadProyecto.total_proyecto
+      : Number(proyecto.total_proyecto || 0);
+
+    const total_actividades = totalesActividadProyecto.total_actividades > 0
+      ? totalesActividadProyecto.total_actividades
+      : Number(proyecto.total_actividades || 0);
+
+    return {
+      total_proyecto,
+      valor_total: total_proyecto,
+      total_actividades,
+      actividades_proyecto: totalesActividadProyecto.actividades_proyecto,
+    };
+  }
+
+  async obtenerProyectoConMetricas(proyecto) {
+    const proyectoBase = proyecto.toObject ? proyecto.toObject() : proyecto;
+    const totales = await this.calcularTotalesProyectoVisible(proyectoBase);
+
+    const progreso = await progresoService.calcularProgresoProyecto(proyectoBase._id);
+
+    return {
+      ...proyectoBase,
+      total_proyecto: totales.total_proyecto,
+      valor_total: totales.valor_total,
+      total_actividades: totales.total_actividades,
+      cantidad_proyectada_total: progreso.cantidad_proyectada_total || 0,
+      cantidad_ejecutada_total: progreso.cantidad_ejecutada_total || 0,
+      avance: progreso.cantidad_proyectada_total > 0
+        ? progreso.cantidad_proyectada_total > 0
+          ? Math.round((progreso.cantidad_ejecutada_total || 0) / (progreso.cantidad_proyectada_total || 1) * 100)
+          : 0
+        : 0,
+      progreso,
+    };
+  }
+
+  async obtenerProyectosConMetricas(filter = {}) {
+    const proyectos = await Proyecto.find(filter)
+      .populate('cliente', 'codigo nit razon_social nombre_comercial activo')
+      .sort({ createdAt: -1 });
+
+    return Promise.all(proyectos.map((p) => this.obtenerProyectoConMetricas(p)));
   }
 
   // ── PALs DE UN PROYECTO ───────────────────────────────────────

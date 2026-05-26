@@ -20,6 +20,18 @@ const validacion = [
   body('codigo').notEmpty().withMessage('Código obligatorio').trim().toUpperCase(),
   body('nombre').notEmpty().withMessage('Nombre obligatorio').trim(),
   body('proyecto').notEmpty().isMongoId().withMessage('Proyecto inválido'),
+  body('porcentaje_distribuido')
+    .optional()
+    .isFloat({ min: 0, max: 100 })
+    .withMessage('Porcentaje_distribuido debe estar entre 0 y 100'),
+  validateRequest,
+];
+
+const validacionUpdate = [
+  body('porcentaje_distribuido')
+    .optional()
+    .isFloat({ min: 0, max: 100 })
+    .withMessage('Porcentaje_distribuido debe estar entre 0 y 100'),
   validateRequest,
 ];
 
@@ -28,7 +40,7 @@ router.get('/:id', validateMongoId('id'), getSubproyecto);
 router.get('/:id/nucleos-disponibles', validateMongoId('id'), getNucleosDisponibles);
 router.get('/:id/progreso', validateMongoId('id'), getProgresoSubproyecto);
 router.post('/', authorize(ROLES.ADMIN_SISTEMA, ROLES.JEFE_OPERACIONES), validacion, createSubproyecto);
-router.put('/:id', authorize(ROLES.ADMIN_SISTEMA, ROLES.JEFE_OPERACIONES), validateMongoId('id'), updateSubproyecto);
+router.put('/:id', authorize(ROLES.ADMIN_SISTEMA, ROLES.JEFE_OPERACIONES), validateMongoId('id'), validacionUpdate, updateSubproyecto);
 router.delete('/:id', authorize(ROLES.ADMIN_SISTEMA), validateMongoId('id'), deleteSubproyecto);
 
 module.exports = router;

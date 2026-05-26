@@ -13,6 +13,9 @@ const mongoose = require('mongoose');
 const { asyncHandler, ApiError } = require('../../middlewares/errorHandler');
 const { sanitizePersona, sanitizeZona, sanitizeClienteRef, sanitizeFincas, sanitizePersonas, sanitizeNucleos, _str, _num } = require('../utils/sanitizer');
 const progresoService = require('../services/progreso.service');
+const proyectoService = require('../services/proyecto.service');
+
+const obtenerCantidadTotal = (item) => _num(item.cantidad_total, _num(item.cantidad, 0));
 
 // ── Transformación de actividades por intervención ────────────
 // ✅ .map() interno — nunca se guarda el array crudo
@@ -20,7 +23,7 @@ const mapActividades = (arr) =>
   (arr || []).map(a => ({
     nombre:          _str(a.nombre,          ''),
     precio_unitario: _num(a.precio_unitario,  0),
-    cantidad:        _num(a.cantidad,          0),
+    cantidad:        obtenerCantidadTotal(a),
     unidad:          _str(a.unidad, 'hectareas'),
     estado:          _str(a.estado, 'Pendiente'),
   }));
@@ -84,7 +87,6 @@ const transformarBody = (body) => ({
   fecha_fin_real:     body.fecha_fin_real     || null,
   tipo_contrato:      body.tipo_contrato,
   valor_contrato:     _num(body.valor_contrato, undefined),
-  avance:             _num(body.avance, 0),
   observaciones:      _str(body.observaciones, undefined),
   estado:             body.estado,
 
@@ -124,12 +126,12 @@ const transformarBody = (body) => ({
 
   actividades: (body.actividades || []).map(a => ({
     actividad: {
-      nombre: _str(a.actividad?.nombre, null),
+      nombre: _str(a.actividad?.nombre || a.actividad_nombre || a.actividad_id, null),
     },
     asignacion_subproyecto: {
       nombre: _str(a.asignacion_subproyecto?.nombre, null),
     },
-    cantidad:        _num(a.cantidad,        0),
+    cantidad:        obtenerCantidadTotal(a),
     precio_unitario: _num(a.precio_unitario, 0),
   })),
 });
@@ -140,9 +142,7 @@ const getProyectos = asyncHandler(async (req, res) => {
   const filter = {};
   if (estado) filter.estado = estado;
 
-  const proyectos = await Proyecto.find(filter)
-    .populate('cliente', 'codigo nit razon_social nombre_comercial activo')
-    .sort({ createdAt: -1 });
+  const proyectos = await proyectoService.obtenerProyectosConMetricas(filter);
   res.status(200).json({ success: true, count: proyectos.length, data: proyectos });
 });
 
@@ -151,7 +151,9 @@ const getProyecto = asyncHandler(async (req, res) => {
   const proyecto = await Proyecto.findById(req.params.id)
     .populate('cliente', 'codigo nit razon_social nombre_comercial activo');
   if (!proyecto) throw new ApiError(404, 'Proyecto no encontrado');
-  res.status(200).json({ success: true, data: proyecto });
+
+  const proyectoConMetricas = await proyectoService.obtenerProyectoConMetricas(proyecto);
+  res.status(200).json({ success: true, data: proyectoConMetricas });
 });
 
 // ── 3. RESUMEN ────────────────────────────────────────────────
@@ -159,7 +161,9 @@ const getResumenProyecto = asyncHandler(async (req, res) => {
   const proyecto = await Proyecto.findById(req.params.id)
     .populate('cliente', 'codigo nit razon_social nombre_comercial activo');
   if (!proyecto) throw new ApiError(404, 'Proyecto no encontrado');
-  res.status(200).json({ success: true, data: proyecto });
+
+  const proyectoConMetricas = await proyectoService.obtenerProyectoConMetricas(proyecto);
+  res.status(200).json({ success: true, data: proyectoConMetricas });
 });
 
 // ── 4. CREAR ──────────────────────────────────────────────────
@@ -188,10 +192,12 @@ const createProyecto = asyncHandler(async (req, res) => {
   const proyectoPopulado = await Proyecto.findById(proyecto._id)
     .populate('cliente', 'codigo nit razon_social nombre_comercial activo');
 
+  const proyectoConMetricas = await proyectoService.obtenerProyectoConMetricas(proyectoPopulado);
+
   res.status(201).json({
     success: true,
     message: 'Proyecto creado exitosamente',
-    data: proyectoPopulado,
+    data: proyectoConMetricas,
   });
 });
 
@@ -207,7 +213,7 @@ const updateProyecto = asyncHandler(async (req, res) => {
   const CAMPOS_ESCALARES = [
     'nombre', 'descripcion', 'fecha_inicio', 'fecha_fin_estimada',
     'fecha_fin_real', 'tipo_contrato', 'valor_contrato',
-    'estado', 'avance', 'observaciones',
+    'estado', 'observaciones',
   ];
   for (const campo of CAMPOS_ESCALARES) {
     if (data[campo] !== undefined) proyecto[campo] = data[campo];
@@ -233,10 +239,12 @@ const updateProyecto = asyncHandler(async (req, res) => {
   const proyectoPopulado = await Proyecto.findById(proyecto._id)
     .populate('cliente', 'codigo nit razon_social nombre_comercial activo');
 
+  const proyectoConMetricas = await proyectoService.obtenerProyectoConMetricas(proyectoPopulado);
+
   res.status(200).json({
     success: true,
     message: 'Proyecto actualizado exitosamente',
-    data: proyectoPopulado,
+    data: proyectoConMetricas,
   });
 });
 

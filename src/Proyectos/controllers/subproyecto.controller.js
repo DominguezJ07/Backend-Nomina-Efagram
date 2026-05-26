@@ -9,6 +9,29 @@ const HorasNoTrabajadas = require('../../HorasNoTrabajadas/models/HorasNoTrabaja
 const { validateCuadrillas } = require('../../Contratos/services/contrato.service');
 const progresoService = require('../services/progreso.service');
 
+const validarPorcentajeDistribuido = async (proyectoId, porcentaje, subproyectoId = null) => {
+  if (porcentaje === undefined || porcentaje === null) return;
+
+  const valor = Number(porcentaje);
+  if (Number.isNaN(valor) || valor < 0 || valor > 100) {
+    throw new ApiError(400, 'El porcentaje_distribuido debe estar entre 0 y 100');
+  }
+
+  const filtro = { proyecto_id: proyectoId };
+  if (subproyectoId) {
+    filtro._id = { $ne: subproyectoId };
+  }
+
+  const existentes = await Subproyecto.find(filtro).select('porcentaje_distribuido').lean();
+  const sumExistente = existentes.reduce((sum, s) => sum + (Number(s.porcentaje_distribuido) || 0), 0);
+  if (sumExistente + valor > 100) {
+    throw new ApiError(
+      400,
+      `La suma de porcentaje_distribuido de los subproyectos de este proyecto no puede exceder 100. Total actual: ${sumExistente}%, intento de agregar: ${valor}%.`
+    );
+  }
+};
+
 /**
  * GET /api/v1/subproyectos?proyecto=id
  */
@@ -140,6 +163,12 @@ const createSubproyecto = asyncHandler(async (req, res) => {
     cuadrillaIdsNormalized = validated.map(c => c._id);
   }
 
+  const porcentajeDistribuido = req.body.porcentaje_distribuido !== undefined
+    ? Number(req.body.porcentaje_distribuido)
+    : 0;
+
+  await validarPorcentajeDistribuido(proyecto._id, porcentajeDistribuido);
+
   const sub = await Subproyecto.create({
     codigo: String(codigo).trim().toUpperCase(),
     nombre: String(nombre).trim(),
@@ -150,6 +179,7 @@ const createSubproyecto = asyncHandler(async (req, res) => {
       codigo: proyecto.codigo || null,
       nombre: proyecto.nombre || null,
     },
+    porcentaje_distribuido: porcentajeDistribuido,
 
     nucleo_ids: nucleoIds,
 
@@ -210,6 +240,11 @@ const updateSubproyecto = asyncHandler(async (req, res) => {
   if (req.body.cuadrillas !== undefined) {
     const validated = await validateCuadrillas(req.body.cuadrillas);
     sub.cuadrillas = validated.map(c => c._id);
+  }
+
+  if (req.body.porcentaje_distribuido !== undefined) {
+    await validarPorcentajeDistribuido(sub.proyecto_id, req.body.porcentaje_distribuido, sub._id);
+    sub.porcentaje_distribuido = Number(req.body.porcentaje_distribuido);
   }
 
   await sub.save();

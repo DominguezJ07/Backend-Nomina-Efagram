@@ -87,6 +87,7 @@ const createContrato = asyncHandler(async (req, res) => {
   const actividadesValidadas =
     await contratoService.validateActividadesConCantidad(actividades, subproyecto);
 
+  await contratoService.validateContratoDentroDistribucionSubproyecto(actividadesValidadas, subproyecto);
   await contratoService.validateCuadrillas(cuadrillas);
 
   const actividadesDoc = actividadesValidadas.map(a => ({
@@ -162,6 +163,8 @@ const updateContrato = asyncHandler(async (req, res) => {
       await contratoService.validateActividadesConCantidadUpdate(
         actividades, subproyectoFinal, req.params.id
       );
+
+    await contratoService.validateContratoDentroDistribucionSubproyecto(validadas, subproyectoFinal, req.params.id);
 
     contrato.actividades = validadas.map(a => ({
       actividad: a.actividad,

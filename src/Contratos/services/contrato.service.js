@@ -4,6 +4,7 @@ const Cuadrilla           = require('../../Personal/models/cuadrilla.model');
 const ActividadCatalogo   = require('../../Proyectos/models/actividadCatalogo.model');
 const AsignacionActividad = require('../../Proyectos/models/asignacionActividad.model');
 const Subproyecto         = require('../../Proyectos/models/subproyecto.model');
+const Proyecto            = require('../../Proyectos/models/proyecto.model');
 const { ApiError }        = require('../../middlewares/errorHandler');
 
 const validateSubproyecto = async (subproyectoId) => {
@@ -171,6 +172,48 @@ const validateActividadesConCantidadUpdate = async (actividades, subproyectoId, 
   return actividades;
 };
 
+const validateContratoDentroDistribucionSubproyecto = async (actividades, subproyectoId, contratoExcluidoId = null) => {
+  const subproyecto = await Subproyecto.findById(subproyectoId).lean();
+  if (!subproyecto) throw new ApiError(404, 'Subproyecto no encontrado');
+
+  const proyecto = await Proyecto.findById(subproyecto.proyecto_id).lean();
+  if (!proyecto) throw new ApiError(400, 'El subproyecto no está asociado a un proyecto válido');
+
+  const totalProyecto = Number(proyecto.total_proyecto || 0);
+  const porcentajeSubproyecto = Number(subproyecto.porcentaje_distribuido || 0);
+  const presupuestoSubproyecto = (porcentajeSubproyecto / 100) * totalProyecto;
+
+  if (totalProyecto <= 0 || porcentajeSubproyecto <= 0) {
+    return;
+  }
+
+  const valorContrato = actividades.reduce((sum, item) => {
+    const cantidad = Number(item.cantidad) || 0;
+    const precio = Number(item.precio_unitario) || 0;
+    return sum + cantidad * precio;
+  }, 0);
+
+  const contratosExistentes = await Contrato.find({
+    subproyecto: subproyectoId,
+    estado: { $in: ['BORRADOR', 'ACTIVO'] },
+    ...(contratoExcluidoId ? { _id: { $ne: contratoExcluidoId } } : {}),
+  }).select('actividades').lean();
+
+  const valorExistente = contratosExistentes.reduce((sum, contrato) => {
+    return sum + (contrato.actividades || []).reduce((subSum, act) => {
+      return subSum + ((Number(act.cantidad) || 0) * (Number(act.precio_unitario) || 0));
+    }, 0);
+  }, 0);
+
+  if (valorExistente + valorContrato > presupuestoSubproyecto + 1e-6) {
+    throw new ApiError(400,
+      `El valor de este contrato (${valorContrato.toFixed(2)}) excede la capacidad del subproyecto. ` +
+      `Subproyecto: ${porcentajeSubproyecto}% de ${totalProyecto.toFixed(2)} = ${presupuestoSubproyecto.toFixed(2)}. ` +
+      `Contratos existentes: ${valorExistente.toFixed(2)}.`
+    );
+  }
+};
+
 const validateCuadrillas = async (cuadrillaIds) => {
   if (!cuadrillaIds || cuadrillaIds.length === 0)
     throw new ApiError(400, 'Debe asignar al menos una cuadrilla');
@@ -214,6 +257,7 @@ module.exports = {
   normalizarLotes,
   validateActividadesConCantidad,
   validateActividadesConCantidadUpdate,
+  validateContratoDentroDistribucionSubproyecto,
   validateCuadrillas,
   validateContratoExists,
   validateCodigoUnico,

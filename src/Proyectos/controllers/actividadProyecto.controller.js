@@ -1,5 +1,6 @@
 const ActividadProyecto = require('../models/actividadProyecto.model');
 const Proyecto = require('../models/proyecto.model');
+const { getMongoId } = require('../utils/objectId.helper');
 const { asyncHandler, ApiError } = require('../../middlewares/errorHandler');
 
 /**
@@ -47,18 +48,33 @@ const getActividadProyecto = asyncHandler(async (req, res) => {
  * POST /api/v1/actividades-proyecto
  */
 const createActividadProyecto = asyncHandler(async (req, res) => {
-  const {
-    proyecto, actividad, intervencion, cliente, supervisor,
-    precio_unitario, cantidad_total, unidad, observaciones,
+    const {
+    proyecto, actividad, actividad_id,
+    intervencion, intervencion_id,
+    cliente, cliente_id_bloque,
+    supervisor, supervisor_id,
+    precio_unitario, cantidad_total, cantidad, unidad, observaciones,
   } = req.body;
 
-  const proyectoDoc = await Proyecto.findById(proyecto);
+  const proyectoId = getMongoId(proyecto);
+  const actividadId = getMongoId(actividad || actividad_id);
+  const intervencionId = getMongoId(intervencion || intervencion_id);
+  const clienteId = getMongoId(cliente || cliente_id_bloque);
+  const supervisorId = getMongoId(supervisor || supervisor_id);
+
+  const proyectoDoc = await Proyecto.findById(proyectoId);
   if (!proyectoDoc) throw new ApiError(404, 'Proyecto no encontrado');
 
+  const cantidadTotal = Number(cantidad_total ?? cantidad ?? 0);
+
   const actividadDoc = await ActividadProyecto.create({
-    proyecto, actividad, intervencion, cliente, supervisor,
+    proyecto: proyectoId,
+    actividad: actividadId,
+    intervencion: intervencionId,
+    cliente: clienteId,
+    supervisor: supervisorId,
     precio_unitario: Number(precio_unitario) || 0,
-    cantidad_total: Number(cantidad_total),
+    cantidad_total: cantidadTotal,
     unidad: unidad || 'UNIDAD',
     observaciones,
   });
@@ -89,17 +105,28 @@ const updateActividadProyecto = asyncHandler(async (req, res) => {
   }
 
   // No permitir reducir cantidad_total por debajo de lo ya asignado
-  if (req.body.cantidad_total !== undefined) {
-    const nueva = Number(req.body.cantidad_total);
-    if (nueva < act.cantidad_asignada) {
-      throw new ApiError(
-        400,
-        `La cantidad total (${nueva}) no puede ser menor a la ya asignada (${act.cantidad_asignada})`
-      );
-    }
+  const nuevaCantidadTotal = req.body.cantidad_total !== undefined
+    ? Number(req.body.cantidad_total)
+    : req.body.cantidad !== undefined
+      ? Number(req.body.cantidad)
+      : undefined;
+
+  if (nuevaCantidadTotal !== undefined && nuevaCantidadTotal < act.cantidad_asignada) {
+    throw new ApiError(
+      400,
+      `La cantidad total (${nuevaCantidadTotal}) no puede ser menor a la ya asignada (${act.cantidad_asignada})`
+    );
   }
 
-  Object.assign(act, req.body);
+  const updateData = { ...req.body };
+  if (nuevaCantidadTotal !== undefined) {
+    updateData.cantidad_total = nuevaCantidadTotal;
+  }
+  if (req.body.cantidad !== undefined && req.body.cantidad_total === undefined) {
+    updateData.cantidad_total = nuevaCantidadTotal;
+  }
+
+  Object.assign(act, updateData);
   await act.save();
 
   await act.populate([
